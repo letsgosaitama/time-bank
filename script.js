@@ -161,7 +161,7 @@ function groupHistory(type) {
         grouped[key].push(h.seconds);
     });
 
-    const divisor = { sec: 1, min: 60, hour: 3600, day: 86400, week: 604800 }[type];
+    const divisor = 1; // 常に秒単位
 
     return {
         labels: Object.keys(grouped),
@@ -179,19 +179,9 @@ function changeGraph(type) {
 
     const g = groupHistory(type);
 
-    const values = g.data;
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const padding = (max - min) * 0.1 || 1;
-
     chart.data.labels = g.labels;
     chart.data.datasets[0].data = g.data;
     chart.data.datasets[0].label = type.toUpperCase();
-
-    chart.options.scales.y.min = Math.max(0, parseFloat((min - padding).toFixed(2)));
-    chart.options.scales.y.max = parseFloat((max + padding).toFixed(2));
-
-    chart.resetZoom();
     chart.update();
 }
 
@@ -270,12 +260,12 @@ chart = new Chart(ctx, {
             zoom: {
                 pan: {
                     enabled: true,
-                    mode: "xy"
+                    mode: "x"
                 },
                 zoom: {
                     wheel: { enabled: true },
                     pinch: { enabled: true },
-                    mode: "xy"
+                    mode: "x"
                 }
             }
         }
@@ -295,3 +285,7 @@ if (mode !== "stop") startLoop();
 changeGraph("sec");
 
 window.addEventListener("beforeunload", saveData);
+
+document.getElementById("historyChart").addEventListener("touchstart", e => {
+    if (e.touches.length === 2) e.preventDefault();
+}, { passive: false });
