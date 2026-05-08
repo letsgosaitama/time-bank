@@ -282,7 +282,7 @@ saveData();
 
 if (mode !== "stop") startLoop();
 
-changeGraph("sec");
+changeGraph("min");
 
 window.addEventListener("beforeunload", saveData);
 
