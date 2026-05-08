@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Time Bank</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="tabs">
+        <button id="timerTab">TIMER</button>
+        <button id="graphTab">GRAPH</button>
+        
+    </div>
+
+    <div id="timerPage">
+        <div id="timer">00:00:00</div>
+
+        <div class="buttons">
+            <button id="upBtn">COUNT UP</button>
+            <button id="downBtn">COUNT DOWN</button>
+            <button id="stopBtn">STOP</button>
+            <button id="resetBtn">RESET</button>
+        </div>
+    </div>
+
+    <div id="graphPage" style="display:none;">
+        <div class="graphButtons">
+            <button onclick="changeGraph('sec')">SEC</button>
+            <button onclick="changeGraph('min')">MIN</button>
+            <button onclick="changeGraph('hour')">HOUR</button>
+            <button onclick="changeGraph('day')">DAY</button>
+            <button onclick="changeGraph('week')">WEEK</button>
+        </div>
+
+        <div class="chartContainer">
+            <canvas id="historyChart"></canvas>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <script src="script.js"></script>
+
+</body>
+</html>
