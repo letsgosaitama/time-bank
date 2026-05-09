@@ -1,211 +1,85 @@
 
 /* =========================
-   Firebase設定
+   グラフUI初期化（最重要）
 ========================= */
-const firebaseConfig = {
-    apiKey: "AIzaSyBOxVHqeHmdL3KVvUDFCGh6hGAd8LbEL2w",
-    authDomain: "timebank-1c2f8.firebaseapp.com",
-    databaseURL: "https://timebank-1c2f8-default-rtdb.firebaseio.com",
-    projectId: "timebank-1c2f8",
-    storageBucket: "timebank-1c2f8.firebasestorage.app",
-    messagingSenderId: "879959904736",
-    appId: "1:879959904736:web:bee79380194a6b3ba1db85"
-};
+window.addEventListener("load", () => {
+    const graphPage = document.getElementById("graphPage");
+    const timerPage = document.getElementById("timerPage");
 
-if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const dataRef = db.ref("timebank");
+    const graphTab = document.getElementById("graphTab");
+    const timerTab = document.getElementById("timerTab");
 
-/* =========================
-   状態
-========================= */
-let timer = null;
-let mode = "stop";
+    // 初期状態
+    if (graphPage) graphPage.style.display = "none";
+    if (timerPage) timerPage.style.display = "block";
 
-let accumulated = 0;
-let lastStartTime = null;
-
-let lastPush = 0;
-let displayMode = "hms";
-
-let dailySummary = [];
-
-const timerText = document.getElementById("timer");
-
-/* =========================
-   秒計算（核）
-========================= */
-function getSeconds() {
-    const now = Date.now();
-
-    if (mode === "up") {
-        if (!lastStartTime) return accumulated;
-        return Math.floor(accumulated + (now - lastStartTime) / 1000);
-    }
-
-    return Math.floor(accumulated);
-}
-
-/* =========================
-   表示
-========================= */
-function formatTime(sec) {
-    if (displayMode === "sec") return sec + "s";
-
-    const h = String(Math.floor(sec / 3600)).padStart(2, "0");
-    const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
-    const s = String(sec % 60).padStart(2, "0");
-    return `${h}:${m}:${s}`;
-}
-
-function render() {
-    timerText.textContent = formatTime(getSeconds());
-}
-
-timerText.onclick = () => {
-    displayMode = displayMode === "hms" ? "sec" : "hms";
-    render();
-};
-
-/* =========================
-   Firebase保存
-========================= */
-function saveState() {
-    dataRef.update({
-        mode,
-        accumulated,
-        lastStartTime,
-        updatedAt: firebase.database.ServerValue.TIMESTAMP
-    });
-}
-
-/* =========================
-   履歴保存
-========================= */
-function pushHistory() {
-    const now = Date.now();
-    const today = new Date().toISOString().slice(0, 10);
-
-    db.ref(`timebank/history/${today}`).push({
-        timestamp: now,
-        seconds: getSeconds()
-    });
-
-    db.ref(`timebank/daily_summary/${today}`).set({
-        timestamp: now,
-        seconds: getSeconds()
-    });
-}
-
-/* =========================
-   タイマー
-========================= */
-function startLoop() {
-    if (timer) clearInterval(timer);
-
-    timer = setInterval(() => {
-        render();
-
-        const now = Date.now();
-
-        if (now - lastPush > 60000) {
-            pushHistory();
-            lastPush = now;
-        }
-
-    }, 1000);
-}
-
-/* =========================
-   ボタン
-========================= */
-document.getElementById("upBtn")?.addEventListener("click", () => {
-    const now = Date.now();
-
-    if (mode !== "up") {
-        lastStartTime = now;
-    }
-
-    mode = "up";
-    saveState();
-    startLoop();
-});
-
-document.getElementById("stopBtn")?.addEventListener("click", () => {
-    const now = Date.now();
-
-    if (mode === "up" && lastStartTime) {
-        accumulated += Math.floor((now - lastStartTime) / 1000);
-    }
-
-    mode = "stop";
-    lastStartTime = null;
-
-    saveState();
-    clearInterval(timer);
-    timer = null;
-
-    render();
-});
-
-document.getElementById("resetBtn")?.addEventListener("click", () => {
-    if (!confirm("全部リセット？")) return;
-
-    mode = "stop";
-    accumulated = 0;
-    lastStartTime = null;
-
-    dataRef.set({ mode, accumulated, lastStartTime });
-
-    db.ref("timebank/history").remove();
-    db.ref("timebank/daily_summary").remove();
-
-    clearInterval(timer);
-    timer = null;
-
-    render();
+    // MINを必ず初期表示
+    showSubTab("min");
 });
 
 /* =========================
-   同期
+   タブ切り替え
 ========================= */
-dataRef.on("value", snap => {
-    const d = snap.val();
-    if (!d) return;
+document.getElementById("graphTab")?.addEventListener("click", () => {
+    const graphPage = document.getElementById("graphPage");
+    const timerPage = document.getElementById("timerPage");
 
-    mode = d.mode || "stop";
-    accumulated = d.accumulated || 0;
-    lastStartTime = d.lastStartTime || null;
+    if (graphPage) graphPage.style.display = "block";
+    if (timerPage) timerPage.style.display = "none";
 
-    if (mode !== "stop" && !timer) {
-        startLoop();
-    }
+    document.getElementById("graphTab")?.classList.add("active");
+    document.getElementById("timerTab")?.classList.remove("active");
 
-    render();
+    showSubTab("min"); // ★これ必須
+});
 
-    if (lastPush === 0) lastPush = Date.now();
+document.getElementById("timerTab")?.addEventListener("click", () => {
+    const graphPage = document.getElementById("graphPage");
+    const timerPage = document.getElementById("timerPage");
+
+    if (graphPage) graphPage.style.display = "none";
+    if (timerPage) timerPage.style.display = "block";
+
+    document.getElementById("timerTab")?.classList.add("active");
+    document.getElementById("graphTab")?.classList.remove("active");
 });
 
 /* =========================
-   グラフUI制御（完全追加）
+   subTab制御（完全安全版）
 ========================= */
-
 window.showSubTab = function(type) {
-    document.querySelectorAll(".subTabContent").forEach(el => el.style.display = "none");
+    const contents = document.querySelectorAll(".subTabContent");
+    contents.forEach(c => c.style.display = "none");
 
     const target = document.getElementById("sub" + type.charAt(0).toUpperCase() + type.slice(1));
     if (target) target.style.display = "block";
 
     document.querySelectorAll(".subTab").forEach(btn => {
-        btn.classList.toggle("active", btn.textContent.toLowerCase() === type);
+        btn.classList.remove("active");
     });
 
-    refreshChart();
+    const activeBtn = [...document.querySelectorAll(".subTab")]
+        .find(b => b.textContent.toLowerCase() === type);
+
+    if (activeBtn) activeBtn.classList.add("active");
+
+    // ★ここ超重要（undefined防止）
+    if (typeof refreshChart === "function") {
+        refreshChart();
+    }
 };
 
+/* =========================
+   グラフ更新（完全防御）
+========================= */
 function refreshChart() {
     const active = document.querySelector(".subTab.active");
-    if (!active) return;
+
+    if (!active) {
+        console.warn("No active subTab → fallback min");
+        fetchHistory("min");
+        return;
+    }
 
     const name = active.textContent.toLowerCase();
 
@@ -224,7 +98,7 @@ function refreshChart() {
 }
 
 /* =========================
-   履歴取得
+   履歴取得（安全版）
 ========================= */
 function fetchHistory(type) {
     const slider = document.getElementById("dateSlider");
@@ -234,12 +108,15 @@ function fetchHistory(type) {
         const data = snap.val() || {};
         const days = Object.keys(data).sort();
 
+        if (days.length === 0) return;
+
         slider.max = Math.max(0, days.length - 1);
 
-        const selected = days[slider.value];
+        const selected = days[slider.value || 0];
         if (!selected) return;
 
-        const list = Object.values(data[selected]).sort((a,b)=>a.timestamp-b.timestamp);
+        const list = Object.values(data[selected])
+            .sort((a,b)=>a.timestamp-b.timestamp);
 
         const labels = list.map(x => {
             const d = new Date(x.timestamp);
@@ -248,22 +125,30 @@ function fetchHistory(type) {
 
         const values = list.map(x => x.seconds);
 
-        renderChart("minChart", labels, values, "min data");
+        renderChart("minChart", labels, values, "Time Log");
     });
 }
 
 /* =========================
-   Chart描画（安全版）
+   Chart安全生成
 ========================= */
 function renderChart(id, labels, data, label) {
     const canvas = document.getElementById(id);
-    if (!canvas) return;
+    if (!canvas) {
+        console.warn("Canvas not found:", id);
+        return;
+    }
 
     const ctx = canvas.getContext("2d");
     const key = "_chart_" + id;
 
     if (window[key]) {
-        try { window[key].destroy(); } catch(e){}
+        try { window[key].destroy(); } catch(e) {}
+    }
+
+    if (!window.Chart) {
+        console.error("Chart.js not loaded");
+        return;
     }
 
     window[key] = new Chart(ctx, {
@@ -291,6 +176,6 @@ function renderChart(id, labels, data, label) {
 /* =========================
    ダミー（未実装防止）
 ========================= */
-function updateDay(){}
-function updateMonth(){}
-function updateYear(){}
+function updateDay() {}
+function updateMonth() {}
+function updateYear() {}
