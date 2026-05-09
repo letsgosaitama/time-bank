@@ -1,20 +1,19 @@
-
 /* =========================
    Firebase設定
 ========================= */
 const firebaseConfig = {
-    apiKey: "AIzaSyBOxVHqeHmdL3KVvUDFCGh6hGAd8LbEL2w",
-    authDomain: "timebank-1c2f8.firebaseapp.com",
-    databaseURL: "https://timebank-1c2f8-default-rtdb.firebaseio.com",
-    projectId: "timebank-1c2f8",
-    storageBucket: "timebank-1c2f8.firebasestorage.app",
-    messagingSenderId: "879959904736",
-    appId: "1:879959904736:web:bee79380194a6b3ba1db85"
+  apiKey: "AIzaSyBOxVHqeHmdL3KVvUDFCGh6hGAd8LbEL2w",
+  authDomain: "timebank-1c2f8.firebaseapp.com",
+  databaseURL: "https://timebank-1c2f8-default-rtdb.firebaseio.com",
+  projectId: "timebank-1c2f8",
+  storageBucket: "timebank-1c2f8.firebasestorage.app",
+  messagingSenderId: "879959904736",
+  appId: "1:879959904736:web:bee79380194a6b3ba1db85"
 };
 
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const ref = db.ref("timebank/state");
+const ref = db.ref("timebank");
 
 /* =========================
    状態
@@ -22,30 +21,28 @@ const ref = db.ref("timebank/state");
 let timer = null;
 
 let state = {
-    mode: "stop",
-    startTime: null,
-    endTime: null,
-    accumulated: 0
+    mode: "stop",        // up / down / stop
+    startTime: null,     // up用
+    endTime: null,       // down用
+    accumulated: 0       // up用の累積
 };
 
 let lastPush = 0;
-let displayMode = "hms";
-
 const timerText = document.getElementById("timer");
 
+let displayMode = "hms";
+
 /* =========================
-   時間計算（核）
+   計算ロジック（ここが核）
 ========================= */
 function getSeconds() {
     const now = Date.now();
 
     if (state.mode === "up") {
-        if (!state.startTime) return state.accumulated;
         return Math.floor(state.accumulated + (now - state.startTime) / 1000);
     }
 
     if (state.mode === "down") {
-        if (!state.endTime) return 0;
         return Math.max(0, Math.floor((state.endTime - now) / 1000));
     }
 
@@ -65,25 +62,23 @@ function formatTime(sec) {
 }
 
 function render() {
-    if (!timerText) return;
     timerText.textContent = formatTime(getSeconds());
 }
 
-timerText?.addEventListener("click", () => {
+timerText.onclick = () => {
     displayMode = displayMode === "hms" ? "sec" : "hms";
     render();
-});
+};
 
 /* =========================
-   Firebase保存
+   Firebase保存（最小）
 ========================= */
 function saveState() {
     ref.update({
         mode: state.mode,
         startTime: state.startTime,
         endTime: state.endTime,
-        accumulated: state.accumulated,
-        updatedAt: firebase.database.ServerValue.TIMESTAMP
+        accumulated: state.accumulated
     });
 }
 
@@ -109,80 +104,78 @@ function pushHistory() {
    タイマー
 ========================= */
 function startLoop() {
-    if (timer) clearInterval(timer);
+    clearInterval(timer);
 
     timer = setInterval(() => {
         render();
 
         const now = Date.now();
 
+        // 1分ごと履歴
         if (now - lastPush > 60000) {
             pushHistory();
             lastPush = now;
         }
 
-        if (state.mode === "down" && state.endTime && state.endTime <= now) {
+        // down終了処理
+        if (state.mode === "down" && state.endTime <= now) {
             state.mode = "stop";
             state.endTime = null;
-            state.accumulated = 0;
             saveState();
-            clearInterval(timer);
-            timer = null;
         }
 
     }, 1000);
 }
 
 /* =========================
-   ボタン
+   ボタン操作
 ========================= */
-document.getElementById("upBtn")?.addEventListener("click", () => {
+
+/* UP開始 */
+document.getElementById("upBtn").onclick = () => {
     const now = Date.now();
 
-    if (state.mode !== "up") {
-        state.startTime = now;
-    }
+    if (state.mode === "up") return;
 
     state.mode = "up";
+    state.startTime = now;
+
     saveState();
     startLoop();
-});
+};
 
-document.getElementById("downBtn")?.addEventListener("click", () => {
+/* DOWN開始 */
+document.getElementById("downBtn").onclick = () => {
     const now = Date.now();
+
+    const duration = state.accumulated || 0;
 
     state.mode = "down";
-    state.endTime = now + (state.accumulated * 1000);
+    state.endTime = now + duration * 1000;
 
     saveState();
     startLoop();
-});
+};
 
-document.getElementById("stopBtn")?.addEventListener("click", () => {
+/* STOP */
+document.getElementById("stopBtn").onclick = () => {
     const now = Date.now();
 
-    if (state.mode === "up" && state.startTime) {
+    if (state.mode === "up") {
         state.accumulated += Math.floor((now - state.startTime) / 1000);
-    }
-
-    if (state.mode === "down" && state.endTime) {
-        state.accumulated = Math.max(0, Math.floor((state.endTime - now) / 1000));
     }
 
     state.mode = "stop";
     state.startTime = null;
-    state.endTime = null;
 
     saveState();
-
-    if (timer) clearInterval(timer);
-    timer = null;
-
+    clearInterval(timer);
     render();
-});
+};
 
-document.getElementById("resetBtn")?.addEventListener("click", () => {
-    if (!confirm("全部リセットする？")) return;
+/* RESET */
+document.getElementById("resetBtn").onclick = () => {
+    if (!confirm("リセットする？")) return;
 
     state = {
         mode: "stop",
@@ -191,15 +184,14 @@ document.getElementById("resetBtn")?.addEventListener("click", () => {
         accumulated: 0
     };
 
-    db.ref("timebank").set(state);
+    ref.set(state);
+
     db.ref("timebank/history").remove();
     db.ref("timebank/daily_summary").remove();
 
-    if (timer) clearInterval(timer);
-    timer = null;
-
+    clearInterval(timer);
     render();
-});
+};
 
 /* =========================
    同期
@@ -225,91 +217,6 @@ ref.on("value", snap => {
 });
 
 /* =========================
-   グラフ（修正済み：エラー消し）
+   初期表示
 ========================= */
-function refreshChart() {
-    const activeTab = document.querySelector(".subTab.active");
-    if (!activeTab) return;
-
-    const name = activeTab.textContent.toLowerCase();
-
-    if (name === "min" || name === "hour") {
-        fetchHistoryAndRender(name);
-        return;
-    }
-
-    const map = {
-        day: updateDaySliders,
-        month: updateMonthSliders,
-        year: updateYearSliders
-    };
-
-    if (map[name]) map[name]();
-}
-
-/* =========================
-   ★ここが今回の修正ポイント
-   （エラー原因の関数を復活）
-========================= */
-function fetchHistoryAndRender(type) {
-    const slider = (type === "min")
-        ? document.getElementById("dateSlider")
-        : document.getElementById("hourDateSlider");
-
-    if (!slider) return;
-
-    db.ref("timebank/history").once("value", snap => {
-        const data = snap.val() || {};
-        const days = Object.keys(data).sort();
-
-        slider.max = Math.max(0, days.length - 1);
-
-        const selectedDate = days[slider.value];
-        if (!selectedDate) return;
-
-        const list = Object.values(data[selectedDate])
-            .sort((a, b) => a.timestamp - b.timestamp);
-
-        if (type === "min") {
-            renderMinChart(selectedDate, list);
-        } else {
-            renderHourChart(selectedDate, list);
-        }
-    });
-}
-
-/* =========================
-   Chart安全版
-========================= */
-function renderChart(id, labels, data, label) {
-    const canvas = document.getElementById(id);
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    const key = "_chart_" + id;
-
-    if (window[key]) {
-        try { window[key].destroy(); } catch(e) {}
-    }
-
-    window[key] = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels,
-            datasets: [{
-                label,
-                data,
-                borderColor: "#007aff",
-                backgroundColor: "rgba(0,122,255,0.1)",
-                fill: true,
-                tension: 0.1,
-                pointRadius: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: false
-        }
-    });
-}
+render();
