@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Time Bank Pro</title>
+    <!-- Faviconのエラー(404)を防ぐ -->
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -37,7 +39,7 @@
         </div>
 
         <div class="graph-main-layout">
-            <!-- 縦スライダー -->
+            <!-- 最新仕様の縦スライダー -->
             <div class="y-axis-container">
                 <span class="y-label">MAX</span>
                 <input type="range" id="yMaxSlider" min="60" max="86400" step="60">
@@ -45,7 +47,6 @@
             </div>
 
             <div class="charts-wrapper">
-                <!-- MIN -->
                 <div id="subMin" class="subTabContent">
                     <div class="minControls">
                         <div class="sliderRow">
@@ -58,7 +59,6 @@
                     <div class="chartContainer"><canvas id="minChart"></canvas></div>
                 </div>
 
-                <!-- HOUR -->
                 <div id="subHour" class="subTabContent" style="display:none;">
                     <div class="minControls">
                         <div class="sliderRow">
@@ -68,7 +68,6 @@
                     <div class="chartContainer"><canvas id="historyChart"></canvas></div>
                 </div>
 
-                <!-- DAY -->
                 <div id="subDay" class="subTabContent" style="display:none;">
                     <div class="minControls">
                         <div class="sliderRow">
@@ -78,7 +77,6 @@
                     <div class="chartContainer"><canvas id="dayChart"></canvas></div>
                 </div>
 
-                <!-- WEEK -->
                 <div id="subWeek" class="subTabContent" style="display:none;">
                     <div class="minControls">
                         <div class="sliderRow">
