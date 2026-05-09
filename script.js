@@ -298,3 +298,42 @@ window.addEventListener("DOMContentLoaded", () => {
         updateUI();
     };
 });
+
+function bindButtons() {
+    document.getElementById("upBtn").onclick = () => {
+        mode = "up";
+        saveData();
+        startLoop();
+    };
+
+    document.getElementById("downBtn").onclick = () => {
+        mode = "down";
+        saveData();
+        startLoop();
+    };
+
+    document.getElementById("stopBtn").onclick = () => {
+        mode = "stop";
+        clearInterval(timer);
+        saveData();
+    };
+
+    document.getElementById("resetBtn").onclick = () => {
+        seconds = 0;
+        mode = "stop";
+        history = [];
+        clearInterval(timer);
+
+        dataRef.set({
+            seconds: 0,
+            mode: "stop",
+            lastUpdate: Date.now()
+        });
+
+        db.ref("timebank/history").remove();
+        updateUI();
+    };
+}
+
+/* ★ここが重要（最後に必ず実行） */
+bindButtons();
