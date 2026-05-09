@@ -42,14 +42,14 @@ timerText.onclick = () => {
 };
 
 /* =========================
-   保存 & クリーンアップロジック
+   保存 & クリーンアップ
 ========================= */
 function saveData(force = false) {
     const now = new Date();
     const t = now.getTime();
     const todayStr = now.toLocaleDateString().replace(/\//g, '-');
 
-    if (force || (t - lastPush > 300000)) { // 5分毎または強制保存
+    if (force || (t - lastPush > 300000)) { 
         dataRef.update({ seconds, mode, lastUpdate: t });
         db.ref(`timebank/history/${todayStr}`).push({ timestamp: t, seconds });
         db.ref(`timebank/daily_summary/${todayStr}`).set({ timestamp: t, seconds });
@@ -61,11 +61,9 @@ function saveData(force = false) {
 function cleanupOldHistory() {
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
     db.ref("timebank/history").once("value", snap => {
-        const historyData = snap.val();
-        if (!historyData) return;
-        Object.keys(historyData).forEach(dateStr => {
-            const folderDate = new Date(dateStr).getTime();
-            if (folderDate < sevenDaysAgo) db.ref(`timebank/history/${dateStr}`).remove();
+        const hData = snap.val(); if (!hData) return;
+        Object.keys(hData).forEach(dateStr => {
+            if (new Date(dateStr).getTime() < sevenDaysAgo) db.ref(`timebank/history/${dateStr}`).remove();
         });
     });
 }
@@ -90,7 +88,7 @@ document.getElementById("upBtn").onclick = () => { mode = "up"; startLoop(); };
 document.getElementById("downBtn").onclick = () => { mode = "down"; startLoop(); };
 document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(true); };
 document.getElementById("resetBtn").onclick = () => {
-    if (!confirm("全データを完全に削除しますか？")) return;
+    if (!confirm("データを削除しますか？")) return;
     seconds = 0; mode = "stop";
     dataRef.set({ seconds: 0, mode: "stop", lastUpdate: Date.now() });
     db.ref("timebank/history").remove();
@@ -117,16 +115,14 @@ db.ref("timebank/daily_summary").on("value", snap => {
 });
 
 /* =========================
-   グラフ描画
+   グラフ描画（spanGapsを有効化）
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
     if (!activeTab) return;
     const name = activeTab.textContent.toLowerCase();
-    
-    if (name === 'min' || name === 'hour') {
-        fetchHistoryAndRender(name);
-    } else {
+    if (name === 'min' || name === 'hour') fetchHistoryAndRender(name);
+    else {
         const updateMap = { day:updateDaySliders, month:updateMonthSliders, year:updateYearSliders };
         if (updateMap[name]) updateMap[name]();
     }
@@ -134,22 +130,14 @@ function refreshChart() {
 
 function fetchHistoryAndRender(type) {
     const ds = (type === 'min') ? document.getElementById("dateSlider") : document.getElementById("hourDateSlider");
-    
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val() || {};
         const days = Object.keys(hData).sort();
         if (days.length === 0) return;
-
-        // 日付スライダーの最大値を設定し、最新（今日）を選択
         ds.max = days.length - 1;
-        if (ds.dataset.initialized !== "true") {
-            ds.value = ds.max; // 初期表示は最新日
-            ds.dataset.initialized = "true";
-        }
-
+        if (ds.dataset.initialized !== "true") { ds.value = ds.max; ds.dataset.initialized = "true"; }
         const selectedDate = days[ds.value];
         const dayHistory = Object.values(hData[selectedDate] || {}).sort((a, b) => a.timestamp - b.timestamp);
-        
         if (type === 'min') renderMinChart(selectedDate, dayHistory);
         else renderHourChart(selectedDate, dayHistory);
     });
@@ -157,24 +145,17 @@ function fetchHistoryAndRender(type) {
 
 function renderMinChart(selectedDate, dayHistory) {
     const hSlider = document.getElementById("hourSlider");
-    
-    // 【追加】初めてグラフを開いた時、スライダーを現在の時刻に合わせる
-    if (hSlider.dataset.initialized !== "true") {
-        hSlider.value = new Date().getHours();
-        hSlider.dataset.initialized = "true";
-    }
-
+    if (hSlider.dataset.initialized !== "true") { hSlider.value = new Date().getHours(); hSlider.dataset.initialized = "true"; }
     const hour = parseInt(hSlider.value);
     document.getElementById("dateLabel").textContent = selectedDate;
     document.getElementById("hourLabel").textContent = hour + "時";
-    
     const labels = Array.from({length:60}, (_,i) => `${hour}:${String(i).padStart(2,'0')}`);
     const map = {};
     dayHistory.forEach(h => {
         const d = new Date(h.timestamp);
         if (d.getHours() === hour) map[d.getMinutes()] = h.seconds;
     });
-    renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次（5分毎更新）");
+    renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次");
 }
 
 function renderHourChart(selectedDate, dayHistory) {
@@ -232,13 +213,27 @@ function renderChart(canvasId, labels, data, label) {
     if (window[key]) window[key].destroy();
     window[key] = new Chart(ctx, {
         type: "line",
-        data: { labels, datasets: [{ label, data, borderColor: '#007aff', backgroundColor: 'rgba(0,122,255,0.1)', fill: true, tension: 0.1, pointRadius: 2 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { beginAtZero: true, max: currentYMax ? Number(currentYMax) : undefined } } }
+        data: { labels, datasets: [{ 
+            label, 
+            data, 
+            borderColor: '#007aff', 
+            backgroundColor: 'rgba(0,122,255,0.1)', 
+            fill: true, 
+            tension: 0.1, 
+            pointRadius: 2,
+            spanGaps: true // ← ここが重要：データが飛んでいても線を繋ぐ
+        }] },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            animation: false, 
+            scales: { y: { beginAtZero: true, max: currentYMax ? Number(currentYMax) : undefined } } 
+        }
     });
 }
 
 /* =========================
-   タブ & 設定
+   タブ & 設定（以下変更なし）
 ========================= */
 window.showSubTab = function (type, isFirstOpen = false) {
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display = "none");
