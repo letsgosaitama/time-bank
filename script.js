@@ -171,13 +171,23 @@ function renderMinChart(dateStr, hour) {
     const start = new Date(y, m - 1, d, hour, 0, 0).getTime();
     const end = start + 3600000;
 
+    // 0分〜59分の固定ラベルを作成
+    const fixedLabels = [];
+    for (let min = 0; min < 60; min++) {
+        fixedLabels.push(`${String(hour).padStart(2,"0")}:${String(min).padStart(2,"0")}`);
+    }
+
+    // 各分のデータをマッピング（データがない分はnull）
     const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
-    const labels = filtered.map(h => {
+    const byMinute = {};
+    filtered.forEach(h => {
         const d = new Date(h.timestamp);
-        return `${d.getHours()}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
+        const key = d.getMinutes();
+        byMinute[key] = h.seconds;
     });
-    const data = filtered.map(h => h.seconds);
-    renderChart("minChart", labels, data, `${dateStr} ${hour}:00〜${hour}:59`);
+
+    const data = fixedLabels.map((_, i) => byMinute[i] !== undefined ? byMinute[i] : null);
+    renderChart("minChart", fixedLabels, data, `${dateStr} ${hour}:00〜${hour}:59`);
 }
 
 /* =========================
