@@ -1,3 +1,4 @@
+
 /* =========================
    Firebase設定
 ========================= */
@@ -33,7 +34,7 @@ let displayMode = "hms";
 const timerText = document.getElementById("timer");
 
 /* =========================
-   秒計算（核）
+   時間計算（核）
 ========================= */
 function getSeconds() {
     const now = Date.now();
@@ -74,7 +75,7 @@ timerText?.addEventListener("click", () => {
 });
 
 /* =========================
-   Firebase保存（最小）
+   Firebase保存
 ========================= */
 function saveState() {
     ref.update({
@@ -87,22 +88,20 @@ function saveState() {
 }
 
 /* =========================
-   履歴
+   履歴保存
 ========================= */
 function pushHistory() {
     const now = Date.now();
     const today = new Date().toISOString().slice(0, 10);
 
-    const sec = getSeconds();
-
     db.ref(`timebank/history/${today}`).push({
         timestamp: now,
-        seconds: sec
+        seconds: getSeconds()
     });
 
     db.ref(`timebank/daily_summary/${today}`).set({
         timestamp: now,
-        seconds: sec
+        seconds: getSeconds()
     });
 }
 
@@ -183,7 +182,7 @@ document.getElementById("stopBtn")?.addEventListener("click", () => {
 });
 
 document.getElementById("resetBtn")?.addEventListener("click", () => {
-    if (!confirm("全部消す？")) return;
+    if (!confirm("全部リセットする？")) return;
 
     state = {
         mode: "stop",
@@ -193,7 +192,6 @@ document.getElementById("resetBtn")?.addEventListener("click", () => {
     };
 
     db.ref("timebank").set(state);
-
     db.ref("timebank/history").remove();
     db.ref("timebank/daily_summary").remove();
 
@@ -204,7 +202,7 @@ document.getElementById("resetBtn")?.addEventListener("click", () => {
 });
 
 /* =========================
-   同期（安全版）
+   同期
 ========================= */
 ref.on("value", snap => {
     const d = snap.val();
@@ -227,73 +225,68 @@ ref.on("value", snap => {
 });
 
 /* =========================
-   グラフ安全起動
-========================= */
-function safeShowGraph() {
-    const graphPage = document.getElementById("graphPage");
-    const timerPage = document.getElementById("timerPage");
-
-    if (timerPage) timerPage.style.display = "none";
-    if (graphPage) graphPage.style.display = "block";
-
-    document.getElementById("graphTab")?.classList.add("active");
-    document.getElementById("timerTab")?.classList.remove("active");
-
-    showSubTab("min", true);
-}
-
-/* タブ */
-window.showSubTab = function (type) {
-    document.querySelectorAll(".subTabContent").forEach(c => c.style.display = "none");
-
-    const target = document.getElementById("sub" + type.charAt(0).toUpperCase() + type.slice(1));
-    if (target) target.style.display = "block";
-
-    document.querySelectorAll(".subTab").forEach(b => {
-        b.classList.remove("active");
-        if (b.textContent.toLowerCase() === type) {
-            b.classList.add("active");
-        }
-    });
-
-    refreshChart();
-};
-
-/* =========================
-   グラフ防御版
+   グラフ（修正済み：エラー消し）
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
-
-    if (!activeTab) {
-        console.warn("no active tab → fallback min");
-        return;
-    }
+    if (!activeTab) return;
 
     const name = activeTab.textContent.toLowerCase();
 
+    if (name === "min" || name === "hour") {
+        fetchHistoryAndRender(name);
+        return;
+    }
+
     const map = {
-        min: fetchHistoryAndRender,
-        hour: fetchHistoryAndRender,
         day: updateDaySliders,
         month: updateMonthSliders,
         year: updateYearSliders
     };
 
-    if (map[name]) map[name](name);
+    if (map[name]) map[name]();
 }
 
 /* =========================
-   Chart安全化
+   ★ここが今回の修正ポイント
+   （エラー原因の関数を復活）
 ========================= */
-function renderChart(canvasId, labels, data, label) {
-    const canvas = document.getElementById(canvasId);
+function fetchHistoryAndRender(type) {
+    const slider = (type === "min")
+        ? document.getElementById("dateSlider")
+        : document.getElementById("hourDateSlider");
+
+    if (!slider) return;
+
+    db.ref("timebank/history").once("value", snap => {
+        const data = snap.val() || {};
+        const days = Object.keys(data).sort();
+
+        slider.max = Math.max(0, days.length - 1);
+
+        const selectedDate = days[slider.value];
+        if (!selectedDate) return;
+
+        const list = Object.values(data[selectedDate])
+            .sort((a, b) => a.timestamp - b.timestamp);
+
+        if (type === "min") {
+            renderMinChart(selectedDate, list);
+        } else {
+            renderHourChart(selectedDate, list);
+        }
+    });
+}
+
+/* =========================
+   Chart安全版
+========================= */
+function renderChart(id, labels, data, label) {
+    const canvas = document.getElementById(id);
     if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const key = "_chart_" + canvasId;
+    const key = "_chart_" + id;
 
     if (window[key]) {
         try { window[key].destroy(); } catch(e) {}
@@ -306,8 +299,8 @@ function renderChart(canvasId, labels, data, label) {
             datasets: [{
                 label,
                 data,
-                borderColor: '#007aff',
-                backgroundColor: 'rgba(0,122,255,0.1)',
+                borderColor: "#007aff",
+                backgroundColor: "rgba(0,122,255,0.1)",
                 fill: true,
                 tension: 0.1,
                 pointRadius: 2
@@ -320,12 +313,3 @@ function renderChart(canvasId, labels, data, label) {
         }
     });
 }
-
-/* =========================
-   グラフボタン
-========================= */
-document.getElementById("graphTab")?.addEventListener("click", safeShowGraph);
-document.getElementById("timerTab")?.addEventListener("click", () => {
-    document.getElementById("graphPage").style.display = "none";
-    document.getElementById("timerPage").style.display = "block";
-});
