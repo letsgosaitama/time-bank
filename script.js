@@ -321,7 +321,7 @@ function renderWeekChart(monthStr) {
    サブタブ切り替え
 ========================= */
 
-function showSubTab(type) {
+window.showSubTab = function(type) {
     ["Min", "Hour", "Day", "Week"].forEach(t => {
         document.getElementById("sub" + t).style.display = "none";
     });
