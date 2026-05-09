@@ -18,18 +18,16 @@ const dataRef = db.ref("timebank");
 /* =========================
    基本変数
 ========================= */
+let timer = null;
+let seconds = 0;
 let mode = "stop";
-let lastStartTime = null; // 開始時刻のタイムスタンプ
-let accumulated = 0;      // 開始時点での累積秒数
-let displaySeconds = 0;   // 画面表示用の計算済み秒数
-
-let localTimer = null;    // UI更新用のタイマー（Firebase保存はしない）
-let lastPushTime = 0;     // グラフ保存用の管理
+let dailySummary = [];
+let currentYMax = null;
+let displayMode = "hms";
+let lastPush = 0;
 
 const timerText = document.getElementById("timer");
 
-/* --- 表示フォーマット --- */
-let displayMode = "hms";
 function formatTime(sec) {
     if (displayMode === "sec") return sec + "s";
     const h = String(Math.floor(sec / 3600)).padStart(2, "0");
@@ -37,126 +35,50 @@ function formatTime(sec) {
     const s = String(sec % 60).padStart(2, "0");
     return `${h}:${m}:${s}`;
 }
+
 timerText.onclick = () => {
     displayMode = (displayMode === "hms") ? "sec" : "hms";
-    updateUI();
+    timerText.textContent = formatTime(seconds);
 };
 
 /* =========================
-   コアロジック：秒数の計算
+   保存 & クリーンアップロジック
 ========================= */
-function calculateCurrentSeconds() {
-    if (mode === "stop" || !lastStartTime) return accumulated;
+function saveData() {
+    const now = new Date();
+    const t = now.getTime();
+    const todayStr = now.toLocaleDateString().replace(/\//g, '-');
 
-    const elapsed = Math.floor((Date.now() - lastStartTime) / 1000);
-    
-    if (mode === "up") {
-        return accumulated + elapsed;
-    } else if (mode === "down") {
-        const result = accumulated - elapsed;
-        if (result <= 0) {
-            handleAutoStop(); // 0秒になったら自動停止
-            return 0;
-        }
-        return result;
-    }
-    return accumulated;
-}
+    // 現在の秒数とモードをリアルタイム更新
+    dataRef.update({ seconds, mode, lastUpdate: t });
 
-// 0秒時の自動停止処理
-function handleAutoStop() {
-    if (mode !== "stop") {
-        db.ref("timebank").update({
-            mode: "stop",
-            accumulated: 0,
-            lastStartTime: null
-        });
+    // 1分ごとの履歴保存
+    if (t - lastPush > 60000) {
+        // 1. 詳細履歴 (history): 直近のMIN/HOURグラフ用
+        db.ref(`timebank/history/${todayStr}`).push({ timestamp: t, seconds });
+
+        // 2. 日次サマリー (daily_summary): 一生残るグラフ用
+        db.ref(`timebank/daily_summary/${todayStr}`).set({ timestamp: t, seconds });
+
+        lastPush = t;
+        
+        // 3. 古いデータの削除（保存のついでに自動実行）
+        cleanupOldHistory();
     }
 }
 
-/* =========================
-   UI更新ループ（毎秒走るが、保存はしない）
-========================= */
-function updateUI() {
-    displaySeconds = calculateCurrentSeconds();
-    timerText.textContent = formatTime(displaySeconds);
-    
-    // ついでにグラフ用のスナップショット（1分おき）の判定
-    checkSnapshotSave();
-}
-
-function startUILoop() {
-    if (localTimer) clearInterval(localTimer);
-    localTimer = setInterval(updateUI, 1000);
-}
-
-/* =========================
-   Firebase保存（ボタン操作 & グラフスナップショット）
-========================= */
-
-// ボタン操作時の状態保存
-function updateFirebaseState(newMode) {
-    const currentVal = calculateCurrentSeconds();
-    db.ref("timebank").update({
-        mode: newMode,
-        accumulated: currentVal,
-        lastStartTime: (newMode === "stop") ? null : Date.now()
-    });
-}
-
-// グラフ用スナップショット（1分に1回、計算結果を保存）
-function checkSnapshotSave() {
-    const now = Date.now();
-    if (now - lastPushTime > 60000) {
-        const todayStr = new Date().toLocaleDateString().replace(/\//g, '-');
-        const currentVal = calculateCurrentSeconds();
-
-        // 1. 詳細履歴 (当日分)
-        db.ref(`timebank/history/${todayStr}`).push({ timestamp: now, seconds: currentVal });
-        // 2. 日次サマリー (永久保存用)
-        db.ref(`timebank/daily_summary/${todayStr}`).set({ timestamp: now, seconds: currentVal });
-
-        lastPushTime = now;
-        cleanupOldHistory(); // 7日経過分の掃除
-    }
-}
-
-/* =========================
-   ボタンイベント
-========================= */
-document.getElementById("upBtn").onclick = () => updateFirebaseState("up");
-document.getElementById("downBtn").onclick = () => updateFirebaseState("down");
-document.getElementById("stopBtn").onclick = () => updateFirebaseState("stop");
-document.getElementById("resetBtn").onclick = () => {
-    if (!confirm("全データを削除しますか？")) return;
-    db.ref("timebank").set({ mode: "stop", accumulated: 0, lastStartTime: null });
-    db.ref("timebank/history").remove();
-    db.ref("timebank/daily_summary").remove();
-};
-
-/* =========================
-   Firebase同期
-========================= */
-dataRef.on("value", snap => {
-    const d = snap.val();
-    if (!d) return;
-
-    mode = d.mode || "stop";
-    accumulated = d.accumulated || 0;
-    lastStartTime = d.lastStartTime || null;
-
-    updateUI();
-    startUILoop();
-});
-
-// 7日前の履歴削除
 function cleanupOldHistory() {
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    
     db.ref("timebank/history").once("value", snap => {
-        const data = snap.val();
-        if (!data) return;
-        Object.keys(data).forEach(dateStr => {
-            if (new Date(dateStr).getTime() < sevenDaysAgo) {
+        const historyData = snap.val();
+        if (!historyData) return;
+
+        Object.keys(historyData).forEach(dateStr => {
+            const folderDate = new Date(dateStr).getTime();
+            // 7日以上前の詳細ログだけを削除（サマリーは残るのでDAYグラフは消えません）
+            if (folderDate < sevenDaysAgo) {
+                console.log(`Deleting old history: ${dateStr}`);
                 db.ref(`timebank/history/${dateStr}`).remove();
             }
         });
@@ -164,17 +86,53 @@ function cleanupOldHistory() {
 }
 
 /* =========================
-   グラフ表示（daily_summary を監視）
+   タイマー制御
 ========================= */
-let dailySummary = [];
+function startLoop() {
+    clearInterval(timer);
+    timer = setInterval(() => {
+        if (mode === "up") seconds++;
+        if (mode === "down") {
+            seconds--;
+            if (seconds <= 0) { seconds = 0; mode = "stop"; clearInterval(timer); }
+        }
+        timerText.textContent = formatTime(seconds);
+        saveData();
+    }, 1000);
+}
+
+document.getElementById("upBtn").onclick = () => { mode = "up"; startLoop(); };
+document.getElementById("downBtn").onclick = () => { mode = "down"; startLoop(); };
+document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(); };
+document.getElementById("resetBtn").onclick = () => {
+    if (!confirm("全データを完全に削除しますか？（一生分のサマリーも消えます）")) return;
+    seconds = 0; mode = "stop";
+    dataRef.set({ seconds: 0, mode: "stop", lastUpdate: Date.now() });
+    db.ref("timebank/history").remove();
+    db.ref("timebank/daily_summary").remove();
+};
+
+/* =========================
+   データ同期
+========================= */
+dataRef.on("value", snap => {
+    const d = snap.val(); if (!d) return;
+    seconds = d.seconds || 0;
+    mode = d.mode || "stop";
+    if (mode !== "stop" && !timer) startLoop();
+    timerText.textContent = formatTime(seconds);
+    if (lastPush === 0) lastPush = Date.now();
+});
+
 db.ref("timebank/daily_summary").on("value", snap => {
     const d = snap.val();
     dailySummary = d ? Object.values(d).sort((a, b) => a.timestamp - b.timestamp) : [];
     if (document.getElementById("graphPage").style.display === "block") refreshChart();
 });
 
-/* --- 以下、グラフ描画ロジック（ピンポイント取得方式） --- */
-
+/* =========================
+   グラフ描画
+========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
     if (!activeTab) return;
@@ -190,13 +148,17 @@ function refreshChart() {
 
 function fetchHistoryAndRender(type) {
     const ds = (type === 'min') ? document.getElementById("dateSlider") : document.getElementById("hourDateSlider");
+    
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val() || {};
         const days = Object.keys(hData).sort();
+        
         ds.max = Math.max(0, days.length - 1);
         const selectedDate = days[ds.value];
         if (!selectedDate) return;
+
         const dayHistory = Object.values(hData[selectedDate]).sort((a, b) => a.timestamp - b.timestamp);
+        
         if (type === 'min') renderMinChart(selectedDate, dayHistory);
         else renderHourChart(selectedDate, dayHistory);
     });
@@ -239,7 +201,7 @@ function updateDaySliders() {
         const d = new Date(h.timestamp);
         if(d.getFullYear()===y && (d.getMonth()+1)===m) map[d.getDate()] = h.seconds;
     });
-    renderChart("dayChart", labels, labels.map((_,i) => map[i+1] ?? null), "日別");
+    renderChart("dayChart", labels, labels.map((_,i) => map[i+1] ?? null), "日別（一生保存）");
 }
 
 function updateMonthSliders() {
@@ -275,6 +237,9 @@ function renderChart(canvasId, labels, data, label) {
     });
 }
 
+/* =========================
+   タブ & 設定
+========================= */
 window.showSubTab = function (type, isFirstOpen = false) {
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display = "none");
     const target = document.getElementById("sub" + type.charAt(0).toUpperCase() + type.slice(1));
