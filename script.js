@@ -44,41 +44,35 @@ timerText.onclick = () => {
 /* =========================
    保存 & クリーンアップロジック
 ========================= */
-function saveData() {
+function saveData(force = false) {
     const now = new Date();
     const t = now.getTime();
     const todayStr = now.toLocaleDateString().replace(/\//g, '-');
 
-    // 現在の秒数とモードをリアルタイム更新
-    dataRef.update({ seconds, mode, lastUpdate: t });
+    // forceがtrue（停止時など）か、前回の保存から5分(300,000ms)経過した場合のみ書き込み
+    if (force || (t - lastPush > 300000)) {
+        console.log("Saving to Firebase...");
+        
+        // 基本ステータスの更新
+        dataRef.update({ seconds, mode, lastUpdate: t });
 
-    // 1分ごとの履歴保存
-    if (t - lastPush > 60000) {
-        // 1. 詳細履歴 (history): 直近のMIN/HOURグラフ用
+        // 詳細履歴とサマリーの保存
         db.ref(`timebank/history/${todayStr}`).push({ timestamp: t, seconds });
-
-        // 2. 日次サマリー (daily_summary): 一生残るグラフ用
         db.ref(`timebank/daily_summary/${todayStr}`).set({ timestamp: t, seconds });
 
         lastPush = t;
-        
-        // 3. 古いデータの削除（保存のついでに自動実行）
         cleanupOldHistory();
     }
 }
 
 function cleanupOldHistory() {
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    
     db.ref("timebank/history").once("value", snap => {
         const historyData = snap.val();
         if (!historyData) return;
-
         Object.keys(historyData).forEach(dateStr => {
             const folderDate = new Date(dateStr).getTime();
-            // 7日以上前の詳細ログだけを削除（サマリーは残るのでDAYグラフは消えません）
             if (folderDate < sevenDaysAgo) {
-                console.log(`Deleting old history: ${dateStr}`);
                 db.ref(`timebank/history/${dateStr}`).remove();
             }
         });
@@ -94,18 +88,24 @@ function startLoop() {
         if (mode === "up") seconds++;
         if (mode === "down") {
             seconds--;
-            if (seconds <= 0) { seconds = 0; mode = "stop"; clearInterval(timer); }
+            if (seconds <= 0) { seconds = 0; mode = "stop"; clearInterval(timer); saveData(true); }
         }
         timerText.textContent = formatTime(seconds);
-        saveData();
+        
+        // ここで5分判定チェックが走る（forceなし）
+        saveData(false);
     }, 1000);
 }
 
 document.getElementById("upBtn").onclick = () => { mode = "up"; startLoop(); };
 document.getElementById("downBtn").onclick = () => { mode = "down"; startLoop(); };
-document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(); };
+document.getElementById("stopBtn").onclick = () => { 
+    mode = "stop"; 
+    clearInterval(timer); 
+    saveData(true); // 停止時は即座に保存
+};
 document.getElementById("resetBtn").onclick = () => {
-    if (!confirm("全データを完全に削除しますか？（一生分のサマリーも消えます）")) return;
+    if (!confirm("全データを完全に削除しますか？")) return;
     seconds = 0; mode = "stop";
     dataRef.set({ seconds: 0, mode: "stop", lastUpdate: Date.now() });
     db.ref("timebank/history").remove();
@@ -117,10 +117,12 @@ document.getElementById("resetBtn").onclick = () => {
 ========================= */
 dataRef.on("value", snap => {
     const d = snap.val(); if (!d) return;
-    seconds = d.seconds || 0;
-    mode = d.mode || "stop";
-    if (mode !== "stop" && !timer) startLoop();
-    timerText.textContent = formatTime(seconds);
+    // ローカルで動いている間は同期による上書きを防ぐ（簡易的な競合回避）
+    if (mode === "stop") {
+        seconds = d.seconds || 0;
+        mode = d.mode || "stop";
+        timerText.textContent = formatTime(seconds);
+    }
     if (lastPush === 0) lastPush = Date.now();
 });
 
@@ -131,13 +133,12 @@ db.ref("timebank/daily_summary").on("value", snap => {
 });
 
 /* =========================
-   グラフ描画
+   グラフ描画（以下変更なし）
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
     if (!activeTab) return;
     const name = activeTab.textContent.toLowerCase();
-    
     if (name === 'min' || name === 'hour') {
         fetchHistoryAndRender(name);
     } else {
@@ -148,17 +149,13 @@ function refreshChart() {
 
 function fetchHistoryAndRender(type) {
     const ds = (type === 'min') ? document.getElementById("dateSlider") : document.getElementById("hourDateSlider");
-    
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val() || {};
         const days = Object.keys(hData).sort();
-        
         ds.max = Math.max(0, days.length - 1);
         const selectedDate = days[ds.value];
         if (!selectedDate) return;
-
         const dayHistory = Object.values(hData[selectedDate]).sort((a, b) => a.timestamp - b.timestamp);
-        
         if (type === 'min') renderMinChart(selectedDate, dayHistory);
         else renderHourChart(selectedDate, dayHistory);
     });
@@ -174,7 +171,7 @@ function renderMinChart(selectedDate, dayHistory) {
         const d = new Date(h.timestamp);
         if (d.getHours() === hour) map[d.getMinutes()] = h.seconds;
     });
-    renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次（直近7日）");
+    renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次（5分毎プロット）");
 }
 
 function renderHourChart(selectedDate, dayHistory) {
@@ -201,7 +198,7 @@ function updateDaySliders() {
         const d = new Date(h.timestamp);
         if(d.getFullYear()===y && (d.getMonth()+1)===m) map[d.getDate()] = h.seconds;
     });
-    renderChart("dayChart", labels, labels.map((_,i) => map[i+1] ?? null), "日別（一生保存）");
+    renderChart("dayChart", labels, labels.map((_,i) => map[i+1] ?? null), "日別");
 }
 
 function updateMonthSliders() {
