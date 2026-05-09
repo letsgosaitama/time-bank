@@ -13,6 +13,7 @@
         <button id="graphTab" class="tab">GRAPH</button>
     </div>
 
+    <!-- タイマーページ -->
     <div id="timerPage">
         <div id="timer">00:00:00</div>
         <div class="buttons">
@@ -23,15 +24,16 @@
         </div>
     </div>
 
+    <!-- グラフページ -->
     <div id="graphPage" style="display:none;">
         <div class="subTabs">
-            <button class="subTab active" onclick="showSubTab('min')">MIN</button>
-            <button class="subTab" onclick="showSubTab('hour')">HOUR</button>
-            <button class="subTab" onclick="showSubTab('day')">DAY</button>
-            <button class="subTab" onclick="showSubTab('week')">WEEK</button>
+            <button class="subTab active" id="btnSubMin" onclick="showSubTab('min')">MIN</button>
+            <button class="subTab" id="btnSubHour" onclick="showSubTab('hour')">HOUR</button>
+            <button class="subTab" id="btnSubDay" onclick="showSubTab('day')">DAY</button>
+            <button class="subTab" id="btnSubWeek" onclick="showSubTab('week')">WEEK</button>
         </div>
 
-        <!-- MIN -->
+        <!-- MIN (分単位グラフ) -->
         <div id="subMin">
             <div class="minControls">
                 <div class="sliderRow">
@@ -45,12 +47,12 @@
                     <span id="hourLabel">0時</span>
                 </div>
             </div>
-            <div class="chartContainer">
+            <div class="chartContainer" style="position: relative; height:300px;">
                 <canvas id="minChart"></canvas>
             </div>
         </div>
 
-        <!-- HOUR -->
+        <!-- HOUR (時間単位グラフ) -->
         <div id="subHour" style="display:none;">
             <div class="minControls">
                 <div class="sliderRow">
@@ -59,12 +61,12 @@
                     <span id="hourDateLabel">-</span>
                 </div>
             </div>
-            <div class="chartContainer">
+            <div class="chartContainer" style="position: relative; height:300px;">
                 <canvas id="historyChart"></canvas>
             </div>
         </div>
 
-        <!-- DAY -->
+        <!-- DAY (日単位グラフ) -->
         <div id="subDay" style="display:none;">
             <div class="minControls">
                 <div class="sliderRow">
@@ -73,26 +75,20 @@
                     <span id="dayMonthLabel">-</span>
                 </div>
             </div>
-            <div class="chartContainer">
+            <div class="chartContainer" style="position: relative; height:300px;">
                 <canvas id="dayChart"></canvas>
             </div>
         </div>
 
-        <!-- WEEK -->
+        <!-- WEEK (週単位グラフ - 枠のみ) -->
         <div id="subWeek" style="display:none;">
-            <div class="minControls">
-                <div class="sliderRow">
-                    <label>年月</label>
-                    <input type="range" id="weekMonthSlider" min="0" max="0" value="0">
-                    <span id="weekMonthLabel">-</span>
-                </div>
-            </div>
-            <div class="chartContainer">
+            <div class="chartContainer" style="position: relative; height:300px;">
                 <canvas id="weekChart"></canvas>
             </div>
         </div>
     </div>
 
+    <!-- Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
@@ -114,6 +110,5 @@
     </script>
 
     <script src="script.js"></script>
-
 </body>
 </html>
