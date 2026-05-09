@@ -31,17 +31,15 @@
     <!-- グラフページ -->
     <div id="graphPage" style="display:none;">
         <div class="subTabs">
-            <button class="subTab active" onclick="showSubTab('min')">MIN</button>
+            <button class="subTab" onclick="showSubTab('min')">MIN</button>
             <button class="subTab" onclick="showSubTab('hour')">HOUR</button>
             <button class="subTab" onclick="showSubTab('day')">DAY</button>
             <button class="subTab" onclick="showSubTab('week')">WEEK</button>
         </div>
 
         <div class="graph-main-layout">
-            <!-- 設定ボタン -->
             <button id="graphConfigBtn" onclick="toggleConfig()">⚙️ スケール設定</button>
 
-            <!-- 隠し設定パネル -->
             <div id="configPanel" class="config-panel" style="display:none;">
                 <div class="y-axis-container">
                     <span class="y-label">縦軸MAX</span>
