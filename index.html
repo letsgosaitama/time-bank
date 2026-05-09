@@ -11,6 +11,7 @@
 
     <div class="tabs">
         <button id="timerTab">TIMER</button>
+        <button id="minTab">MIN</button>
         <button id="graphTab">GRAPH</button>
         
     </div>
@@ -38,6 +39,17 @@
             <canvas id="historyChart"></canvas>
         </div>
     </div>
+
+    <div id="minPage" style="display:none;">
+    <div class="minControls">
+        <input type="date" id="minDate">
+        <input type="number" id="minHour" min="0" max="23" value="0"> 時
+        <button id="minShowBtn">表示</button>
+    </div>
+    <div class="chartContainer">
+        <canvas id="minChart"></canvas>
+    </div>
+</div>
 
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
