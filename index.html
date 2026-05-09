@@ -34,7 +34,6 @@
             <button class="subTab" onclick="showSubTab('min')">MIN</button>
             <button class="subTab" onclick="showSubTab('hour')">HOUR</button>
             <button class="subTab" onclick="showSubTab('day')">DAY</button>
-            <button class="subTab" onclick="showSubTab('week')">WEEK</button>
             <button class="subTab" onclick="showSubTab('month')">MONTH</button>
             <button class="subTab" onclick="showSubTab('year')">YEAR</button>
         </div>
@@ -72,13 +71,6 @@
                         <div class="sliderRow"><label>選択月</label><input type="range" id="dayMonthSlider"><span id="dayMonthLabel">-</span></div>
                     </div>
                     <div class="chartContainer"><canvas id="dayChart"></canvas></div>
-                </div>
-
-                <div id="subWeek" class="subTabContent" style="display:none;">
-                    <div class="minControls">
-                        <div class="sliderRow"><label>選択月</label><input type="range" id="weekMonthSlider"><span id="weekMonthLabel">-</span></div>
-                    </div>
-                    <div class="chartContainer"><canvas id="weekChart"></canvas></div>
                 </div>
 
                 <div id="subMonth" class="subTabContent" style="display:none;">
