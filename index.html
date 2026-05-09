@@ -3,26 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Time Bank</title>
+    <title>Time Bank Pro</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Chart.js & Plugins -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
 
     <div class="tabs">
-        <button id="timerTab" class="tab active">TIMER</button>
-        <button id="graphTab" class="tab">GRAPH</button>
+        <div id="timerTab" class="tab active">TIMER</div>
+        <div id="graphTab" class="tab">GRAPH</div>
     </div>
 
+    <!-- タイマーページ -->
     <div id="timerPage">
         <div id="timer">00:00:00</div>
         <div class="buttons">
-            <button id="upBtn">COUNT UP</button>
-            <button id="downBtn">COUNT DOWN</button>
+            <button id="upBtn">UP</button>
+            <button id="downBtn">DOWN</button>
             <button id="stopBtn">STOP</button>
             <button id="resetBtn">RESET</button>
         </div>
     </div>
 
+    <!-- グラフページ -->
     <div id="graphPage" style="display:none;">
         <div class="subTabs">
             <button class="subTab active" onclick="showSubTab('min')">MIN</button>
@@ -31,12 +40,19 @@
             <button class="subTab" onclick="showSubTab('week')">WEEK</button>
         </div>
 
-        <!-- MIN -->
-        <div id="subMin">
+        <!-- 縦軸調整エリア -->
+        <div class="axis-controls">
+            <label>縦軸最大値:</label>
+            <input type="number" id="yMaxInput" placeholder="自動">
+            <button id="applyYScaleBtn" onclick="updateAllChartsScale()">適用</button>
+        </div>
+
+        <!-- 各グラフ表示エリア -->
+        <div id="subMin" class="subTabContent">
             <div class="minControls">
                 <div class="sliderRow">
                     <label>日付</label>
-                    <input type="range" id="dateSlider" min="0" max="0" value="0">
+                    <input type="range" id="dateSlider" value="0">
                     <span id="dateLabel">-</span>
                 </div>
                 <div class="sliderRow">
@@ -45,75 +61,43 @@
                     <span id="hourLabel">0時</span>
                 </div>
             </div>
-            <div class="chartContainer">
-                <canvas id="minChart"></canvas>
-            </div>
+            <div class="chartContainer"><canvas id="minChart"></canvas></div>
         </div>
 
-        <!-- HOUR -->
-        <div id="subHour" style="display:none;">
+        <div id="subHour" class="subTabContent" style="display:none;">
             <div class="minControls">
                 <div class="sliderRow">
-                    <label>年月日</label>
-                    <input type="range" id="hourDateSlider" min="0" max="0" value="0">
+                    <label>日付</label>
+                    <input type="range" id="hourDateSlider" value="0">
                     <span id="hourDateLabel">-</span>
                 </div>
             </div>
-            <div class="chartContainer">
-                <canvas id="historyChart"></canvas>
-            </div>
+            <div class="chartContainer"><canvas id="historyChart"></canvas></div>
         </div>
 
-        <!-- DAY -->
-        <div id="subDay" style="display:none;">
+        <div id="subDay" class="subTabContent" style="display:none;">
             <div class="minControls">
                 <div class="sliderRow">
-                    <label>年月</label>
-                    <input type="range" id="dayMonthSlider" min="0" max="0" value="0">
+                    <label>月別</label>
+                    <input type="range" id="dayMonthSlider" value="0">
                     <span id="dayMonthLabel">-</span>
                 </div>
             </div>
-            <div class="chartContainer">
-                <canvas id="dayChart"></canvas>
-            </div>
+            <div class="chartContainer"><canvas id="dayChart"></canvas></div>
         </div>
 
-        <!-- WEEK -->
-        <div id="subWeek" style="display:none;">
+        <div id="subWeek" class="subTabContent" style="display:none;">
             <div class="minControls">
                 <div class="sliderRow">
-                    <label>年月</label>
-                    <input type="range" id="weekMonthSlider" min="0" max="0" value="0">
+                    <label>月別</label>
+                    <input type="range" id="weekMonthSlider" value="0">
                     <span id="weekMonthLabel">-</span>
                 </div>
             </div>
-            <div class="chartContainer">
-                <canvas id="weekChart"></canvas>
-            </div>
+            <div class="chartContainer"><canvas id="weekChart"></canvas></div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
-
-    <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyBOxVHqeHmdL3KVvUDFCGh6hGAd8LbEL2w",
-            authDomain: "timebank-1c2f8.firebaseapp.com",
-            databaseURL: "https://timebank-1c2f8-default-rtdb.firebaseio.com",
-            projectId: "timebank-1c2f8",
-            storageBucket: "timebank-1c2f8.firebasestorage.app",
-            messagingSenderId: "879959904736",
-            appId: "1:879959904736:web:bee79380194a6b3ba1db85"
-        };
-        firebase.initializeApp(firebaseConfig);
-    </script>
-
     <script src="script.js"></script>
-
 </body>
 </html>
