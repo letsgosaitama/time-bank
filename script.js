@@ -102,10 +102,13 @@ function startLoop() {
 }
 
 /* =========================
-   汎用チャート描画
+   チャート描画
 ========================= */
 function renderChart(canvasId, labels, data, label) {
-    const ctx = document.getElementById(canvasId).getContext("2d");
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
     const key = "_chart_" + canvasId;
 
     if (window[key]) window[key].destroy();
@@ -123,42 +126,13 @@ function renderChart(canvasId, labels, data, label) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            animation: false,
-
-            scales: {
-                x: {
-                    type: "category",
-                    offset: true,
-                    ticks: {
-                        autoSkip: false,
-                        maxRotation: 90,
-                        minRotation: 90
-                    }
-                },
-                y: {
-                    beginAtZero: true
-                }
-            },
-
-            plugins: {
-                zoom: {
-                    pan: {
-                        enabled: true,
-                        mode: "x"
-                    },
-                    zoom: {
-                        wheel: { enabled: true },
-                        pinch: { enabled: true },
-                        mode: "x"
-                    }
-                }
-            }
+            animation: false
         }
     });
 }
 
 /* =========================
-   MINグラフ（完全修正版）
+   MINグラフ
 ========================= */
 function renderMinChart(dateStr, hour) {
     if (!dateStr) return;
@@ -173,21 +147,13 @@ function renderMinChart(dateStr, hour) {
 
     const data = Array(60).fill(null);
 
-    const filtered = history.filter(h =>
-        h.timestamp >= start && h.timestamp < end
-    );
-
-    filtered.forEach(h => {
-        const minute = new Date(h.timestamp).getMinutes();
-        data[minute] = h.seconds;
+    history.forEach(h => {
+        if (h.timestamp < start || h.timestamp >= end) return;
+        const min = new Date(h.timestamp).getMinutes();
+        data[min] = h.seconds;
     });
 
-    renderChart(
-        "minChart",
-        labels,
-        data,
-        `${dateStr} ${hour}:00〜${hour}:59`
-    );
+    renderChart("minChart", labels, data, `${dateStr} ${hour}:00`);
 }
 
 /* =========================
@@ -204,12 +170,15 @@ function initMinSliders() {
     const hourSlider = document.getElementById("hourSlider");
     const hourLabel = document.getElementById("hourLabel");
 
-    dateSlider.max = Math.max(0, days.length - 1);
+    if (days.length === 0) return;
+
+    dateSlider.max = days.length - 1;
     dateSlider.value = days.length - 1;
-    dateLabel.textContent = days.at(-1) || "-";
 
     hourSlider.value = new Date().getHours();
-    hourLabel.textContent = `${hourSlider.value}時`;
+
+    dateLabel.textContent = days[days.length - 1];
+    hourLabel.textContent = hourSlider.value + "時";
 
     dateSlider.oninput = () => {
         dateLabel.textContent = days[dateSlider.value];
@@ -217,70 +186,65 @@ function initMinSliders() {
     };
 
     hourSlider.oninput = () => {
-        hourLabel.textContent = `${hourSlider.value}時`;
+        hourLabel.textContent = hourSlider.value + "時";
         renderMinChart(days[dateSlider.value], +hourSlider.value);
     };
 
-    renderMinChart(days.at(-1), +hourSlider.value);
+    renderMinChart(days[days.length - 1], +hourSlider.value);
 }
 
 /* =========================
-   HOUR / DAY / WEEK（そのまま）
-   ※構造安定なので省略なし
+   HOUR（24固定）
 ========================= */
-
-function initHourSliders() {
-    const days = [...new Set(history.map(h => {
-        const d = new Date(h.timestamp);
-        return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-    }))];
-
-    const slider = document.getElementById("hourDateSlider");
-    const label = document.getElementById("hourDateLabel");
-
-    slider.max = Math.max(0, days.length - 1);
-    slider.value = days.length - 1;
-    label.textContent = days.at(-1) || "-";
-
-    slider.oninput = () => {
-        label.textContent = days[slider.value];
-        renderHourChart(days[slider.value]);
-    };
-
-    renderHourChart(days.at(-1));
-}
-
 function renderHourChart(dateStr) {
     if (!dateStr) return;
 
     const [y, m, d] = dateStr.split("/").map(Number);
-    const start = new Date(y, m - 1, d, 0, 0, 0).getTime();
+    const start = new Date(y, m - 1, d).getTime();
     const end = start + 86400000;
 
-    const grouped = {};
+    const labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+    const data = Array(24).fill(null);
 
     history.forEach(h => {
         if (h.timestamp < start || h.timestamp >= end) return;
-
-        const d = new Date(h.timestamp);
-        const key = `${d.getHours()}:00`;
-
-        grouped[key] = h.seconds;
+        const hHour = new Date(h.timestamp).getHours();
+        data[hHour] = h.seconds;
     });
 
-    renderChart(
-        "historyChart",
-        Object.keys(grouped),
-        Object.values(grouped),
-        dateStr
-    );
+    renderChart("historyChart", labels, data, dateStr);
+}
+
+/* =========================
+   DAY（30固定）
+========================= */
+function renderDayChart(monthStr) {
+    if (!monthStr) return;
+
+    const [y, m] = monthStr.split("/").map(Number);
+
+    const labels = Array.from({ length: 30 }, (_, i) => `${i + 1}`);
+    const data = Array(30).fill(null);
+
+    history.forEach(h => {
+        const d = new Date(h.timestamp);
+        if (d.getFullYear() !== y || d.getMonth() + 1 !== m) return;
+        data[d.getDate() - 1] = h.seconds;
+    });
+
+    renderChart("dayChart", labels, data, monthStr);
+}
+
+/* =========================
+   WEEK（30固定）
+========================= */
+function renderWeekChart(monthStr) {
+    renderDayChart(monthStr);
 }
 
 /* =========================
    Firebase同期
 ========================= */
-//Chart.register(window.ChartZoom);
-
 dataRef.on("value", snap => {
     const data = snap.val();
     if (!data) return;
@@ -299,4 +263,38 @@ dataRef.on("value", snap => {
 db.ref("timebank/history").on("value", snap => {
     const data = snap.val();
     history = data ? Object.values(data).sort((a, b) => a.timestamp - b.timestamp) : [];
+});
+
+/* =========================
+   ボタン（超重要）
+========================= */
+window.addEventListener("DOMContentLoaded", () => {
+
+    document.getElementById("upBtn").onclick = () => {
+        mode = "up";
+        saveData();
+        startLoop();
+    };
+
+    document.getElementById("downBtn").onclick = () => {
+        mode = "down";
+        saveData();
+        startLoop();
+    };
+
+    document.getElementById("stopBtn").onclick = () => {
+        mode = "stop";
+        clearInterval(timer);
+        saveData();
+    };
+
+    document.getElementById("resetBtn").onclick = () => {
+        seconds = 0;
+        mode = "stop";
+        history = [];
+        clearInterval(timer);
+        dataRef.set({ seconds: 0, mode: "stop", lastUpdate: now() });
+        db.ref("timebank/history").remove();
+        updateUI();
+    };
 });
