@@ -1,11 +1,29 @@
-// Firebase設定（ご自身のものを入れてください）
-const firebaseConfig = { /* ... */ };
-if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+/* =========================
+   Firebase 接続設定
+========================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyBOxVHqeHmdL3KVvUDFCGh6hGAd8LbEL2w",
+  authDomain: "timebank-1c2f8.firebaseapp.com",
+  databaseURL: "https://timebank-1c2f8-default-rtdb.firebaseio.com",
+  projectId: "timebank-1c2f8",
+  storageBucket: "timebank-1c2f8.firebasestorage.app",
+  messagingSenderId: "879959904736",
+  appId: "1:879959904736:web:bee79380194a6b3ba1db85",
+  measurementId: "G-727GMR2BXN"
+};
 
-let timer = null;
+// Firebase初期化
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+
 const db = firebase.database();
 const dataRef = db.ref("timebank");
 
+/* =========================
+   タイマー・データ管理変数
+========================= */
+let timer = null;
 let seconds = 0;
 let mode = "stop";
 let lastUpdate = Date.now();
@@ -15,8 +33,11 @@ let currentYMax = null; // 縦軸の最大値
 
 const timerText = document.getElementById("timer");
 
-/* ユーティリティ */
+/* =========================
+   ユーティリティ
+========================= */
 function now() { return Date.now(); }
+
 function formatTime(sec) {
     const h = String(Math.floor(sec / 3600)).padStart(2, "0");
     const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
@@ -24,11 +45,76 @@ function formatTime(sec) {
     return `${h}:${m}:${s}`;
 }
 
-/* 描画の核心：縦軸maxを反映 */
+/* =========================
+   Firebase保存・同期
+========================= */
+function saveData() {
+    const t = now();
+    dataRef.update({ seconds, mode, lastUpdate: t });
+
+    if (t - lastHistorySave > 10000) { // 10秒ごとに履歴保存
+        db.ref("timebank/history").push({ timestamp: t, seconds });
+        lastHistorySave = t;
+    }
+}
+
+dataRef.on("value", snap => {
+    const data = snap.val();
+    if (!data) return;
+    seconds = data.seconds || 0;
+    mode = data.mode || "stop";
+    lastUpdate = data.lastUpdate || now();
+    
+    // オフライン中の進行補正
+    if (mode !== "stop") {
+        const diff = Math.floor((now() - lastUpdate) / 1000);
+        if (mode === "up") seconds += diff;
+        else seconds -= Math.max(0, diff);
+        startLoop();
+    }
+    timerText.textContent = formatTime(seconds);
+});
+
+db.ref("timebank/history").on("value", snap => {
+    const data = snap.val();
+    history = data ? Object.values(data).sort((a, b) => a.timestamp - b.timestamp) : [];
+});
+
+/* =========================
+   タイマー操作
+========================= */
+function startLoop() {
+    clearInterval(timer);
+    timer = setInterval(() => {
+        if (mode === "up") seconds++;
+        if (mode === "down") {
+            seconds--;
+            if (seconds <= 0) { seconds = 0; mode = "stop"; clearInterval(timer); }
+        }
+        timerText.textContent = formatTime(seconds);
+        saveData();
+    }, 1000);
+}
+
+document.getElementById("upBtn").onclick = () => { mode = "up"; startLoop(); };
+document.getElementById("downBtn").onclick = () => { mode = "down"; startLoop(); };
+document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(); };
+document.getElementById("resetBtn").onclick = () => {
+    if (!confirm("データをリセットしますか？")) return;
+    seconds = 0; mode = "stop"; history = []; clearInterval(timer);
+    dataRef.set({ seconds: 0, mode: "stop", lastUpdate: now() });
+    db.ref("timebank/history").remove();
+    timerText.textContent = formatTime(0);
+};
+
+/* =========================
+   グラフ描画・調整機能
+========================= */
 function renderChart(canvasId, labels, data, label) {
     const ctx = document.getElementById(canvasId).getContext("2d");
     const key = "_chart_" + canvasId;
     if (window[key]) window[key].destroy();
+    
     window[key] = new Chart(ctx, {
         type: "line",
         data: {
@@ -51,20 +137,21 @@ function renderChart(canvasId, labels, data, label) {
     });
 }
 
-/* 縦軸の更新 */
-function updateAllChartsScale() {
+// 縦軸最大値の適用
+window.updateAllChartsScale = function() {
     const val = document.getElementById("yMaxInput").value;
     currentYMax = (val && val > 0) ? val : null;
     
-    // 現在表示中のグラフを即時更新
-    const activeSubTab = document.querySelector(".subTab.active").textContent;
-    if(activeSubTab === "MIN") updateMinSliders();
-    if(activeSubTab === "HOUR") updateHourSliders();
-    if(activeSubTab === "DAY") updateDaySliders();
-    if(activeSubTab === "WEEK") updateWeekSliders();
-}
+    const activeSub = document.querySelector(".subTab.active").textContent;
+    if (activeSub === "MIN") updateMinSliders();
+    else if (activeSub === "HOUR") updateHourSliders();
+    else if (activeSub === "DAY") updateDaySliders();
+    else if (activeSub === "WEEK") updateWeekSliders();
+};
 
-/* 各グラフの更新ロジック */
+/* =========================
+   各タブ・スライダー更新ロジック
+========================= */
 function updateMinSliders() {
     const days = [...new Set(history.map(h => {
         const d = new Date(h.timestamp);
@@ -118,9 +205,10 @@ function updateDaySliders() {
     const [y, m] = selectedMonth.split("/").map(Number);
     const lastDay = new Date(y, m, 0).getDate();
     const labels = Array.from({length: lastDay}, (_, i) => `${i + 1}日`);
-    const start = new Date(y, m - 1, 1).getTime();
-    const end = new Date(y, m, 1).getTime();
-    const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
+    const filtered = history.filter(h => {
+        const d = new Date(h.timestamp);
+        return d.getFullYear() === y && (d.getMonth() + 1) === m;
+    });
     const map = {};
     filtered.forEach(h => { map[new Date(h.timestamp).getDate()] = h.seconds; });
     const data = labels.map((_, i) => map[i + 1] !== undefined ? map[i + 1] : null);
@@ -144,9 +232,10 @@ function updateWeekSliders() {
         labels.push(`${d.getMonth() + 1}/${d.getDate()}(週)`);
         d.setDate(d.getDate() + 7);
     }
-    const start = new Date(y, m - 1, 1).getTime();
-    const end = new Date(y, m, 1).getTime();
-    const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
+    const filtered = history.filter(h => {
+        const dt = new Date(h.timestamp);
+        return dt.getFullYear() === y && (dt.getMonth() + 1) === m;
+    });
     const map = {};
     filtered.forEach(h => {
         const dt = new Date(h.timestamp);
@@ -158,66 +247,42 @@ function updateWeekSliders() {
     renderChart("weekChart", labels, data, `${selectedMonth} (週別)`);
 }
 
-/* タブ切り替え時の初期化 */
-function initMinSliders() {
-    const days = [...new Set(history.map(h => {
-        const d = new Date(h.timestamp);
-        return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
-    }))];
-    if(days.length > 0) {
-        document.getElementById("dateSlider").max = days.length - 1;
-        document.getElementById("dateSlider").value = days.length - 1;
-        document.getElementById("hourSlider").value = new Date().getHours();
-    }
-    updateMinSliders();
-}
-
-function initHourSliders() {
-    const days = [...new Set(history.map(h => {
-        const d = new Date(h.timestamp);
-        return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
-    }))];
-    if(days.length > 0) {
-        document.getElementById("hourDateSlider").max = days.length - 1;
-        document.getElementById("hourDateSlider").value = days.length - 1;
-    }
-    updateHourSliders();
-}
-
-function initDaySliders() {
-    const months = [...new Set(history.map(h => {
-        const d = new Date(h.timestamp);
-        return `${d.getFullYear()}/${d.getMonth()+1}`;
-    }))];
-    if(months.length > 0) {
-        document.getElementById("dayMonthSlider").max = months.length - 1;
-        document.getElementById("dayMonthSlider").value = months.length - 1;
-    }
-    updateDaySliders();
-}
-
-function initWeekSliders() {
-    const months = [...new Set(history.map(h => {
-        const d = new Date(h.timestamp);
-        return `${d.getFullYear()}/${d.getMonth()+1}`;
-    }))];
-    if(months.length > 0) {
-        document.getElementById("weekMonthSlider").max = months.length - 1;
-        document.getElementById("weekMonthSlider").value = months.length - 1;
-    }
-    updateWeekSliders();
-}
-
-/* イベント登録 */
+/* =========================
+   タブ切り替え・初期化
+========================= */
 window.showSubTab = function(type) {
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display = "none");
     document.getElementById("sub" + type.charAt(0).toUpperCase() + type.slice(1)).style.display = "block";
     document.querySelectorAll(".subTab").forEach(b => b.classList.remove("active"));
     event.currentTarget.classList.add("active");
-    if(type === "min") initMinSliders();
-    if(type === "hour") initHourSliders();
-    if(type === "day") initDaySliders();
-    if(type === "week") initWeekSliders();
+
+    const days = [...new Set(history.map(h => {
+        const d = new Date(h.timestamp);
+        return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+    }))];
+    const months = [...new Set(history.map(h => {
+        const d = new Date(h.timestamp);
+        return `${d.getFullYear()}/${d.getMonth()+1}`;
+    }))];
+
+    if(type === "min" && days.length > 0) {
+        document.getElementById("dateSlider").max = days.length - 1;
+        document.getElementById("dateSlider").value = days.length - 1;
+        document.getElementById("hourSlider").value = new Date().getHours();
+        updateMinSliders();
+    } else if(type === "hour" && days.length > 0) {
+        document.getElementById("hourDateSlider").max = days.length - 1;
+        document.getElementById("hourDateSlider").value = days.length - 1;
+        updateHourSliders();
+    } else if(type === "day" && months.length > 0) {
+        document.getElementById("dayMonthSlider").max = months.length - 1;
+        document.getElementById("dayMonthSlider").value = months.length - 1;
+        updateDaySliders();
+    } else if(type === "week" && months.length > 0) {
+        document.getElementById("weekMonthSlider").max = months.length - 1;
+        document.getElementById("weekMonthSlider").value = months.length - 1;
+        updateWeekSliders();
+    }
 };
 
 document.getElementById("dateSlider").oninput = updateMinSliders;
@@ -240,58 +305,3 @@ document.getElementById("graphTab").onclick = () => {
     document.getElementById("timerTab").classList.remove("active");
     showSubTab("min");
 };
-
-/* タイマー基本機能 */
-function startLoop() {
-    clearInterval(timer);
-    timer = setInterval(() => {
-        if (mode === "up") seconds++;
-        if (mode === "down") {
-            seconds--;
-            if (seconds <= 0) { seconds = 0; mode = "stop"; clearInterval(timer); }
-        }
-        timerText.textContent = formatTime(seconds);
-        saveData();
-    }, 1000);
-}
-
-document.getElementById("upBtn").onclick = () => { mode = "up"; startLoop(); };
-document.getElementById("downBtn").onclick = () => { mode = "down"; startLoop(); };
-document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(); };
-document.getElementById("resetBtn").onclick = () => {
-    if (!confirm("リセット？")) return;
-    seconds = 0; mode = "stop"; history = []; clearInterval(timer);
-    dataRef.set({ seconds: 0, mode: "stop", lastUpdate: now() });
-    db.ref("timebank/history").remove();
-    timerText.textContent = formatTime(0);
-};
-
-/* データ同期 */
-dataRef.on("value", snap => {
-    const data = snap.val();
-    if (!data) return;
-    seconds = data.seconds || 0;
-    mode = data.mode || "stop";
-    lastUpdate = data.lastUpdate || now();
-    if (mode !== "stop") {
-        const diff = Math.floor((now() - lastUpdate) / 1000);
-        if (mode === "up") seconds += diff;
-        else seconds -= Math.max(0, diff);
-        startLoop();
-    }
-    timerText.textContent = formatTime(seconds);
-});
-
-db.ref("timebank/history").on("value", snap => {
-    const data = snap.val();
-    history = data ? Object.values(data).sort((a, b) => a.timestamp - b.timestamp) : [];
-});
-
-function saveData() {
-    const t = now();
-    dataRef.update({ seconds, mode, lastUpdate: t });
-    if (t - lastHistorySave > 10000) {
-        db.ref("timebank/history").push({ timestamp: t, seconds });
-        lastHistorySave = t;
-    }
-}
