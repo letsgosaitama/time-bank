@@ -16,7 +16,7 @@ const db = firebase.database();
 const ref = db.ref("timebank/state");
 
 /* =========================
-   内部状態
+   状態管理
 ========================= */
 let timer = null;
 let state = {
@@ -31,7 +31,7 @@ let displayMode = "hms";
 const timerText = document.getElementById("timer");
 
 /* =========================
-   計算・表示
+   計算・表示ロジック
 ========================= */
 function getSeconds() {
     const now = Date.now();
@@ -57,7 +57,7 @@ function render() {
 }
 
 /* =========================
-   Firebase送信 (ここ以外で保存しない)
+   Firebase通信（送信）
 ========================= */
 function saveState() {
     ref.set({
@@ -90,10 +90,14 @@ function startLoop() {
     timer = setInterval(() => {
         render();
         const now = Date.now();
+        
+        // 1分ごとの履歴保存
         if (now - lastPush > 60000) {
             pushHistory();
             lastPush = now;
         }
+
+        // カウントダウン終了
         if (state.mode === "down" && state.endTime <= now) {
             state.mode = "stop";
             state.endTime = null;
@@ -128,7 +132,7 @@ ref.on("value", snap => {
 });
 
 /* =========================
-   UI切り替え (TIMER / GRAPH)
+   UI・タブ切り替え
 ========================= */
 document.addEventListener("DOMContentLoaded", () => {
     const graphTab = document.getElementById("graphTab");
@@ -150,11 +154,18 @@ document.addEventListener("DOMContentLoaded", () => {
         timerTab.classList.add("active");
         graphTab.classList.remove("active");
     });
+
+    // スライダーのリアルタイム反映登録
+    document.getElementById("dateSlider").oninput = () => fetchHistory("min");
+    document.getElementById("yMaxSlider").oninput = () => {
+        document.getElementById("yMaxDisplay").textContent = document.getElementById("yMaxSlider").value + "s";
+        refreshChart();
+    };
 });
 
 /* =========================
-   サブタブ表示 (MIN, HOUR, DAY...)
-========================= */
+   グラフ・サブタブ制御
+======================== */
 window.showSubTab = function(type) {
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display = "none");
 
@@ -172,16 +183,18 @@ window.showSubTab = function(type) {
     refreshChart();
 };
 
-/* =========================
-   グラフ更新ロジック
-========================= */
+window.toggleConfig = function() {
+    const panel = document.getElementById("configPanel");
+    if (panel) panel.style.display = (panel.style.display === "none") ? "block" : "none";
+};
+
 function refreshChart() {
     const active = document.querySelector(".subTab.active");
     if (!active) return;
     const name = active.textContent.trim().toLowerCase();
 
     if (name === "min") fetchHistory("min");
-    // 他の updateDay, updateMonth 等もここに繋げる
+    // day, month等は必要に応じて追加
 }
 
 function fetchHistory(type) {
@@ -215,6 +228,8 @@ function renderChart(id, labels, data, label) {
     const key = "_chart_" + id;
     if (window[key]) window[key].destroy();
 
+    const yMax = parseInt(document.getElementById("yMaxSlider").value);
+
     window[key] = new Chart(ctx, {
         type: "line",
         data: {
@@ -228,12 +243,22 @@ function renderChart(id, labels, data, label) {
                 tension: 0.2
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false, animation: false }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            animation: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: yMax || undefined
+                }
+            }
+        }
     });
 }
 
 /* =========================
-   ボタン操作
+   タイマーボタン操作
 ========================= */
 document.getElementById("upBtn").onclick = () => {
     if (state.mode === "up") return;
@@ -245,11 +270,20 @@ document.getElementById("downBtn").onclick = () => {
 };
 document.getElementById("stopBtn").onclick = () => {
     if (state.mode === "stop") return;
-    if (state.mode === "up") state.accumulated += Math.floor((Date.now() - state.startTime) / 1000);
-    else if (state.mode === "down") state.accumulated = Math.max(0, Math.floor((state.endTime - Date.now()) / 1000));
+    const now = Date.now();
+    if (state.mode === "up") {
+        state.accumulated += Math.floor((now - state.startTime) / 1000);
+    } else if (state.mode === "down") {
+        state.accumulated = Math.max(0, Math.floor((state.endTime - now) / 1000));
+    }
     state.mode = "stop"; state.startTime = null; state.endTime = null; saveState();
 };
 document.getElementById("resetBtn").onclick = () => {
-    if (!confirm("リセットしますか？")) return;
+    if (!confirm("すべてのデータをリセットしますか？")) return;
     db.ref("timebank").remove(); location.reload();
+};
+
+timerText.onclick = () => {
+    displayMode = displayMode === "hms" ? "sec" : "hms";
+    render();
 };
