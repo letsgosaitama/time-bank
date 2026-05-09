@@ -105,25 +105,58 @@ function startLoop() {
 function renderChart(canvasId, labels, data, label) {
     const ctx = document.getElementById(canvasId).getContext("2d");
     const key = "_chart_" + canvasId;
+
     if (window[key]) window[key].destroy();
+
     window[key] = new Chart(ctx, {
         type: "line",
         data: {
             labels,
-            datasets: [{ label, data }]
+            datasets: [{
+                label,
+                data,
+                spanGaps: true // nullの穴を線でつなぐ（任意だけど地味に重要）
+            }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             animation: false,
+
+            scales: {
+                x: {
+                    type: "category",
+
+                    ticks: {
+                        autoSkip: false,   // ★全部表示
+                        maxRotation: 90,   // ★詰まり対策
+                        minRotation: 90
+                    }
+                },
+                y: {
+                    beginAtZero: true
+                }
+            },
+
             plugins: {
                 zoom: {
-                    pan: { enabled: true, mode: "x" },
+                    pan: {
+                        enabled: true,
+                        mode: "x"
+                    },
                     zoom: {
-                        pinch: { enabled: true },
-                        wheel: { enabled: true },
+                        wheel: {
+                            enabled: true
+                        },
+                        pinch: {
+                            enabled: true
+                        },
                         mode: "x"
                     }
+                },
+
+                legend: {
+                    display: true
                 }
             }
         }
