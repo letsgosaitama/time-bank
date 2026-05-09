@@ -1,5 +1,5 @@
 /* =========================
-   Firebase設定
+   Firebase設定 (※あなたの設定に書き換えてください)
 ========================= */
 const firebaseConfig = {
   apiKey: "AIzaSyBOxVHqeHmdL3KVvUDFCGh6hGAd8LbEL2w",
@@ -16,7 +16,7 @@ const db = firebase.database();
 const dataRef = db.ref("timebank");
 
 /* =========================
-   変数管理
+   変数・タイマー
 ========================= */
 let timer = null;
 let seconds = 0;
@@ -42,9 +42,6 @@ function saveData() {
     }
 }
 
-/* =========================
-   タイマー
-========================= */
 function startLoop() {
     clearInterval(timer);
     timer = setInterval(() => {
@@ -62,7 +59,7 @@ document.getElementById("upBtn").onclick = () => { mode = "up"; startLoop(); };
 document.getElementById("downBtn").onclick = () => { mode = "down"; startLoop(); };
 document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(); };
 document.getElementById("resetBtn").onclick = () => {
-    if (!confirm("データを全消去してリセットしますか？")) return;
+    if (!confirm("データを全消去しますか？")) return;
     seconds = 0; mode = "stop";
     dataRef.set({ seconds: 0, mode: "stop", lastUpdate: Date.now() });
     db.ref("timebank/history").remove();
@@ -85,7 +82,7 @@ db.ref("timebank/history").on("value", snap => {
 });
 
 /* =========================
-   UI操作
+   共通ユーティリティ
 ========================= */
 window.toggleConfig = function() {
     const panel = document.getElementById("configPanel");
@@ -94,13 +91,8 @@ window.toggleConfig = function() {
 
 document.getElementById("yMaxSlider").oninput = function() {
     const val = parseInt(this.value);
-    if (val >= 85000) {
-        currentYMax = null;
-        document.getElementById("yMaxDisplay").textContent = "AUTO";
-    } else {
-        currentYMax = val;
-        document.getElementById("yMaxDisplay").textContent = val + "s";
-    }
+    if (val >= 85000) { currentYMax = null; document.getElementById("yMaxDisplay").textContent = "AUTO"; }
+    else { currentYMax = val; document.getElementById("yMaxDisplay").textContent = val + "s"; }
     refreshChart();
 };
 
@@ -112,9 +104,6 @@ function refreshChart() {
     if(updateMap[name]) updateMap[name]();
 }
 
-/* =========================
-   描画
-========================= */
 function renderChart(canvasId, labels, data, label) {
     const canvas = document.getElementById(canvasId);
     if(!canvas) return;
@@ -131,14 +120,18 @@ function renderChart(canvasId, labels, data, label) {
     });
 }
 
-// スライダー位置を現在時刻に合わせる便利関数
 function setSliderToCurrent(sliderId, list, currentVal) {
     const slider = document.getElementById(sliderId);
+    if (!slider) return;
     slider.max = Math.max(0, list.length - 1);
     const idx = list.indexOf(currentVal);
     if (idx !== -1) slider.value = idx;
+    else slider.value = slider.max; // 存在しない場合は最新に
 }
 
+/* =========================
+   各描画ロジック
+========================= */
 function updateMinSliders() {
     const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
     const ds = document.getElementById("dateSlider");
@@ -172,8 +165,7 @@ function updateDaySliders() {
     document.getElementById("dayMonthLabel").textContent = selectedMonth || "-";
     if (!selectedMonth) return;
     const [y, m] = selectedMonth.split("/").map(Number);
-    const lastDay = new Date(y, m, 0).getDate();
-    const labels = Array.from({length: lastDay}, (_,i) => (i+1)+"日");
+    const labels = Array.from({length: new Date(y, m, 0).getDate()}, (_,i) => (i+1)+"日");
     const filtered = history.filter(h => { const d = new Date(h.timestamp); return d.getFullYear()===y && (d.getMonth()+1)===m; });
     const map = {}; filtered.forEach(h => map[new Date(h.timestamp).getDate()] = h.seconds);
     renderChart("dayChart", labels, labels.map((_,i) => map[i+1] ?? null), "日別推移");
@@ -187,16 +179,13 @@ function updateWeekSliders() {
     const map = {};
     history.forEach(h => {
         const d = new Date(h.timestamp);
-        if(`${d.getFullYear()}/${d.getMonth()+1}` === selectedMonth) {
-            const week = Math.ceil(d.getDate() / 7);
-            map[week] = h.seconds;
-        }
+        if(`${d.getFullYear()}/${d.getMonth()+1}` === selectedMonth) map[Math.ceil(d.getDate()/7)] = h.seconds;
     });
     renderChart("weekChart", ["第1週","第2週","第3週","第4週","第5週"], [1,2,3,4,5].map(w => map[w] ?? null), "週別推移");
 }
 
 function updateMonthSliders() {
-    const years = [...new Set(history.map(h => new Date(h.timestamp).getFullYear()))];
+    const years = [...new Set(history.map(h => new Date(h.timestamp).getFullYear()))].sort();
     const selectedYear = years[document.getElementById("monthYearSlider").value];
     document.getElementById("monthYearLabel").textContent = selectedYear || "-";
     if (!selectedYear) return;
@@ -217,56 +206,45 @@ function updateYearSliders() {
 }
 
 /* =========================
-   タブ・初期化
+   タブ切替
 ========================= */
 window.showSubTab = function(type, isFirstOpen = false) {
-    document.getElementById("configPanel").style.display = "none";
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display="none");
-    const target = document.getElementById("sub"+type.charAt(0).toUpperCase()+type.slice(1));
-    if(target) target.style.display="block";
+    const target = document.getElementById("sub" + type.charAt(0).toUpperCase() + type.slice(1));
+    if(target) target.style.display = "block";
     
-    document.querySelectorAll(".subTab").forEach(b => {
-        b.classList.remove("active");
-        if(b.textContent.toLowerCase() === type) b.classList.add("active");
-    });
+    document.querySelectorAll(".subTab").forEach(b => b.classList.toggle("active", b.textContent.toLowerCase() === type));
 
     const now = new Date();
     const curDate = now.toLocaleDateString();
     const curMonth = `${now.getFullYear()}/${now.getMonth()+1}`;
     const curYear = now.getFullYear();
 
-    if(type==='min') {
-        const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
-        if(isFirstOpen) {
-            setSliderToCurrent("dateSlider", days, curDate);
-            document.getElementById("hourSlider").value = now.getHours();
-        }
+    const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
+    const months = [...new Set(history.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
+    const years = [...new Set(history.map(h => new Date(h.timestamp).getFullYear()))].sort();
+
+    if (type === 'min') {
+        if (isFirstOpen) { setSliderToCurrent("dateSlider", days, curDate); document.getElementById("hourSlider").value = now.getHours(); }
+        else { document.getElementById("dateSlider").max = Math.max(0, days.length - 1); }
         updateMinSliders();
-    }
-    if(type==='hour') {
-        const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
-        if(isFirstOpen) setSliderToCurrent("hourDateSlider", days, curDate);
+    } else if (type === 'hour') {
+        setSliderToCurrent("hourDateSlider", days, curDate);
         updateHourSliders();
-    }
-    if(type==='day') {
-        const months = [...new Set(history.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
-        if(isFirstOpen) setSliderToCurrent("dayMonthSlider", months, curMonth);
+    } else if (type === 'day') {
+        setSliderToCurrent("dayMonthSlider", months, curMonth);
         updateDaySliders();
-    }
-    if(type==='week') {
-        const months = [...new Set(history.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
-        if(isFirstOpen) setSliderToCurrent("weekMonthSlider", months, curMonth);
+    } else if (type === 'week') {
+        setSliderToCurrent("weekMonthSlider", months, curMonth);
         updateWeekSliders();
-    }
-    if(type==='month') {
-        const years = [...new Set(history.map(h => new Date(h.timestamp).getFullYear()))];
-        if(isFirstOpen) setSliderToCurrent("monthYearSlider", years, curYear);
+    } else if (type === 'month') {
+        setSliderToCurrent("monthYearSlider", years, curYear);
         updateMonthSliders();
+    } else if (type === 'year') {
+        updateYearSliders();
     }
-    if(type==='year') updateYearSliders();
 };
 
-// イベント登録
 document.getElementById("dateSlider").oninput = updateMinSliders;
 document.getElementById("hourSlider").oninput = updateMinSliders;
 document.getElementById("hourDateSlider").oninput = updateHourSliders;
@@ -285,6 +263,5 @@ document.getElementById("graphTab").onclick = () => {
     document.getElementById("graphPage").style.display="block";
     document.getElementById("graphTab").classList.add("active");
     document.getElementById("timerTab").classList.remove("active");
-    // 初回オープン時は現在時刻に合わせる
     showSubTab('min', true);
 };
