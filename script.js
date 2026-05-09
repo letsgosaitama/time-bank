@@ -28,12 +28,18 @@ let lastPush = 0;
 
 const timerText = document.getElementById("timer");
 
+// マイナスに対応した時間フォーマット
 function formatTime(sec) {
-    if (displayMode === "sec") return sec + "s";
-    const h = String(Math.floor(sec / 3600)).padStart(2, "0");
-    const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
-    const s = String(sec % 60).padStart(2, "0");
-    return `${h}:${m}:${s}`;
+    const isNegative = sec < 0;
+    const absSec = Math.abs(sec); // 計算用に絶対値にする
+    
+    if (displayMode === "sec") return (isNegative ? "-" : "") + absSec + "s";
+    
+    const h = String(Math.floor(absSec / 3600)).padStart(2, "0");
+    const m = String(Math.floor((absSec % 3600) / 60)).padStart(2, "0");
+    const s = String(absSec % 60).padStart(2, "0");
+    
+    return `${isNegative ? "-" : ""}${h}:${m}:${s}`;
 }
 
 timerText.onclick = () => {
@@ -69,7 +75,7 @@ function cleanupOldHistory() {
 }
 
 /* =========================
-   タイマー制御
+   タイマー制御（マイナス対応）
 ========================= */
 function startLoop() {
     clearInterval(timer);
@@ -77,7 +83,8 @@ function startLoop() {
         if (mode === "up") seconds++;
         if (mode === "down") {
             seconds--;
-            if (seconds <= 0) { seconds = 0; mode = "stop"; clearInterval(timer); saveData(true); }
+            // 0以下でも止まらないように条件を削除（または変更）
+            // もし「-1時間で止める」などの制限が欲しければここに書く
         }
         timerText.textContent = formatTime(seconds);
         saveData(false);
@@ -115,7 +122,7 @@ db.ref("timebank/daily_summary").on("value", snap => {
 });
 
 /* =========================
-   グラフ描画（spanGapsを有効化）
+   グラフ描画
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
@@ -221,19 +228,19 @@ function renderChart(canvasId, labels, data, label) {
             fill: true, 
             tension: 0.1, 
             pointRadius: 2,
-            spanGaps: true // ← ここが重要：データが飛んでいても線を繋ぐ
+            spanGaps: true
         }] },
         options: { 
             responsive: true, 
             maintainAspectRatio: false, 
             animation: false, 
-            scales: { y: { beginAtZero: true, max: currentYMax ? Number(currentYMax) : undefined } } 
+            scales: { y: { beginAtZero: false, max: currentYMax ? Number(currentYMax) : undefined } } 
         }
     });
 }
 
 /* =========================
-   タブ & 設定（以下変更なし）
+   タブ & 設定
 ========================= */
 window.showSubTab = function (type, isFirstOpen = false) {
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display = "none");
