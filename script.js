@@ -21,12 +21,11 @@ const dataRef = db.ref("timebank");
 let timer = null;
 let seconds = 0;
 let mode = "stop";
-let history = [];
+let history = []; 
 let dailySummary = [];
 let currentYMax = null;
 let displayMode = "hms";
 let lastPush = 0;
-let lastDate = new Date().toDateString();
 
 const timerText = document.getElementById("timer");
 
@@ -44,49 +43,17 @@ timerText.onclick = () => {
 };
 
 /* =========================
-   保存・クリーンアップロジック
+   保存ロジック（ヒストリは消さない！）
 ========================= */
-
-// 古いヒストリ（詳細ログ）だけを消し、サマリーと秒数は維持する
-function cleanupOldHistory() {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
-    db.ref("timebank/history").once("value", snap => {
-        const data = snap.val();
-        if (!data) return;
-        Object.entries(data).forEach(([key, val]) => {
-            if (val.timestamp < todayStart) {
-                db.ref("timebank/history/" + key).remove();
-            }
-        });
-    });
-    console.log("0時のクリーンアップ完了: 詳細ヒストリを削除しました。");
-}
-
 function saveData() {
     const now = new Date();
     const t = now.getTime();
     const todayStr = now.toLocaleDateString().replace(/\//g, '-');
 
-    // 1. 日付またぎのチェック
-    const nowDate = now.toDateString();
-    if (nowDate !== lastDate) {
-        // 0時を過ぎた瞬間、前日の最終集計を確定保存
-        const yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yestStr = yesterday.toLocaleDateString().replace(/\//g, '-');
-        db.ref("timebank/daily_summary/" + yestStr).set({ timestamp: t - 1000, seconds: seconds });
-        
-        // 履歴の削除を実行
-        cleanupOldHistory();
-        lastDate = nowDate;
-    }
-
-    // 2. 現在の秒数を常に同期（リセットせず昨日の記録から継続）
+    // 現在の状態を同期（秒数は昨日の続きから継続）
     dataRef.update({ seconds, mode, lastUpdate: t });
 
-    // 3. グラフ用データ保存（1分間隔）
+    // 1分ごとに保存（これがMIN/HOURグラフの元になる）
     if (t - lastPush > 60000) {
         db.ref("timebank/history").push({ timestamp: t, seconds });
         db.ref("timebank/daily_summary/" + todayStr).set({ timestamp: t, seconds });
@@ -114,7 +81,7 @@ document.getElementById("upBtn").onclick = () => { mode = "up"; startLoop(); };
 document.getElementById("downBtn").onclick = () => { mode = "down"; startLoop(); };
 document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(); };
 document.getElementById("resetBtn").onclick = () => {
-    if (!confirm("データを全消去しますか？")) return;
+    if (!confirm("データを完全に削除しますか？")) return;
     seconds = 0; mode = "stop";
     dataRef.set({ seconds: 0, mode: "stop", lastUpdate: Date.now() });
     db.ref("timebank/history").remove();
@@ -122,7 +89,7 @@ document.getElementById("resetBtn").onclick = () => {
 };
 
 /* =========================
-   データ同期
+   データ同期（ここを高速化！）
 ========================= */
 dataRef.on("value", snap => {
     const d = snap.val(); if (!d) return;
@@ -133,94 +100,81 @@ dataRef.on("value", snap => {
     if (lastPush === 0) lastPush = Date.now();
 });
 
-db.ref("timebank/history").on("value", snap => {
-    const d = snap.val();
-    history = d ? Object.values(d).sort((a, b) => a.timestamp - b.timestamp) : [];
-});
-
+// 重くならないよう、グラフを開いた時だけデータを取る仕組みに変更するため、ここでは「日付リスト」だけ作ります
 db.ref("timebank/daily_summary").on("value", snap => {
     const d = snap.val();
     dailySummary = d ? Object.values(d).sort((a, b) => a.timestamp - b.timestamp) : [];
-    if (document.getElementById("graphPage").style.display === "block") refreshChart();
 });
 
 /* =========================
-   グラフ描画
+   グラフ描画（全期間対応版）
 ========================= */
-window.toggleConfig = function() {
-    const panel = document.getElementById("configPanel");
-    panel.style.display = (panel.style.display === "none") ? "flex" : "none";
-};
-
-document.getElementById("yMaxSlider").oninput = function() {
-    const val = parseInt(this.value);
-    if (val >= 85000) { currentYMax = null; document.getElementById("yMaxDisplay").textContent = "AUTO"; }
-    else { currentYMax = val; document.getElementById("yMaxDisplay").textContent = val + "s"; }
-    refreshChart();
-};
-
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
     if (!activeTab) return;
     const name = activeTab.textContent.toLowerCase();
-    const updateMap = { min:updateMinSliders, hour:updateHourSliders, day:updateDaySliders, month:updateMonthSliders, year:updateYearSliders };
-    if (updateMap[name]) updateMap[name]();
+    
+    // MIN/HOURグラフの時だけ、その日のヒストリをFirebaseからピンポイントで取得する
+    if (name === 'min' || name === 'hour') {
+        fetchHistoryAndRender(name);
+    } else {
+        const updateMap = { day:updateDaySliders, month:updateMonthSliders, year:updateYearSliders };
+        if (updateMap[name]) updateMap[name]();
+    }
 }
 
-function renderChart(canvasId, labels, data, label) {
-    const canvas = document.getElementById(canvasId); if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const key = "_chart_" + canvasId;
-    if (window[key]) window[key].destroy();
-    window[key] = new Chart(ctx, {
-        type: "line",
-        data: { labels, datasets: [{ label, data, borderColor: '#007aff', backgroundColor: 'rgba(0,122,255,0.1)', fill: true, tension: 0.1, pointRadius: 2 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { beginAtZero: true, max: currentYMax ? Number(currentYMax) : undefined } } }
-    });
-}
-
-function setSliderToCurrent(sliderId, list, currentVal) {
-    const slider = document.getElementById(sliderId); if (!slider) return;
-    slider.max = Math.max(0, list.length - 1);
-    const idx = list.indexOf(currentVal);
-    slider.value = (idx !== -1) ? idx : slider.max;
-}
-
-// 各グラフロジック（当日分のhistoryと永久保存のdailySummaryを使い分け）
-function updateMinSliders() {
-    const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
-    const ds = document.getElementById("dateSlider");
+// ピンポイント取得関数
+function fetchHistoryAndRender(type) {
+    const ds = (type === 'min') ? document.getElementById("dateSlider") : document.getElementById("hourDateSlider");
+    // 全データの中からユニークな日付リストを作成（dailySummaryは軽いのでこれでOK）
+    const days = [...new Set(dailySummary.map(h => new Date(h.timestamp).toLocaleDateString()))];
     const selectedDate = days[ds.value];
+    if (!selectedDate) return;
+
+    const start = new Date(selectedDate).getTime();
+    const end = start + 86400000;
+
+    // Firebaseに「この日のデータだけちょうだい」とリクエスト（これが高速化のキモ）
+    db.ref("timebank/history")
+      .orderByChild("timestamp")
+      .startAt(start)
+      .endAt(end)
+      .once("value", snap => {
+          const d = snap.val();
+          const dayHistory = d ? Object.values(d).sort((a, b) => a.timestamp - b.timestamp) : [];
+          if (type === 'min') renderMinChart(selectedDate, dayHistory);
+          else renderHourChart(selectedDate, dayHistory);
+      });
+}
+
+function renderMinChart(selectedDate, dayHistory) {
     const hour = parseInt(document.getElementById("hourSlider").value);
-    document.getElementById("dateLabel").textContent = selectedDate || "-";
+    document.getElementById("dateLabel").textContent = selectedDate;
     document.getElementById("hourLabel").textContent = hour + "時";
-    if (!selectedDate) return;
     const labels = Array.from({length:60}, (_,i) => `${hour}:${String(i).padStart(2,'0')}`);
-    const map = {}; history.forEach(h => {
+    const map = {};
+    dayHistory.forEach(h => {
         const d = new Date(h.timestamp);
-        if(d.toLocaleDateString() === selectedDate && d.getHours() === hour) map[d.getMinutes()] = h.seconds;
+        if (d.getHours() === hour) map[d.getMinutes()] = h.seconds;
     });
-    renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次推移(当日)");
+    renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次推移");
 }
 
-function updateHourSliders() {
-    const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
-    const ds = document.getElementById("hourDateSlider");
-    const selectedDate = days[ds.value];
-    document.getElementById("hourDateLabel").textContent = selectedDate || "-";
-    if (!selectedDate) return;
+function renderHourChart(selectedDate, dayHistory) {
+    document.getElementById("hourDateLabel").textContent = selectedDate;
     const labels = Array.from({length:24}, (_,i) => i+":00");
-    const map = {}; history.forEach(h => {
+    const map = {};
+    dayHistory.forEach(h => {
         const d = new Date(h.timestamp);
-        if(d.toLocaleDateString() === selectedDate) map[d.getHours()] = h.seconds;
+        map[d.getHours()] = h.seconds;
     });
-    renderChart("historyChart", labels, labels.map((_,i) => map[i] ?? null), "24時間推移(当日)");
+    renderChart("historyChart", labels, labels.map((_,i) => map[i] ?? null), "24時間推移");
 }
 
+/* --- DAY/MONTH/YEAR は dailySummary（軽量）を使用 --- */
 function updateDaySliders() {
     const months = [...new Set(dailySummary.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
-    const ds = document.getElementById("dayMonthSlider");
-    const selectedMonth = months[ds.value];
+    const selectedMonth = months[document.getElementById("dayMonthSlider").value];
     document.getElementById("dayMonthLabel").textContent = selectedMonth || "-";
     if (!selectedMonth) return;
     const [y, m] = selectedMonth.split("/").map(Number);
@@ -229,13 +183,12 @@ function updateDaySliders() {
         const d = new Date(h.timestamp);
         if(d.getFullYear()===y && (d.getMonth()+1)===m) map[d.getDate()] = h.seconds;
     });
-    renderChart("dayChart", labels, labels.map((_,i) => map[i+1] ?? null), "日別推移(全期間)");
+    renderChart("dayChart", labels, labels.map((_,i) => map[i+1] ?? null), "日別推移");
 }
 
 function updateMonthSliders() {
     const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort();
-    const ds = document.getElementById("monthYearSlider");
-    const selectedYear = years[ds.value];
+    const selectedYear = years[document.getElementById("monthYearSlider").value];
     document.getElementById("monthYearLabel").textContent = selectedYear || "-";
     if (!selectedYear) return;
     const map = {}; dailySummary.forEach(h => {
@@ -253,8 +206,20 @@ function updateYearSliders() {
 }
 
 /* =========================
-   タブ
+   共通Chart描画 & タブ
 ========================= */
+function renderChart(canvasId, labels, data, label) {
+    const canvas = document.getElementById(canvasId); if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const key = "_chart_" + canvasId;
+    if (window[key]) window[key].destroy();
+    window[key] = new Chart(ctx, {
+        type: "line",
+        data: { labels, datasets: [{ label, data, borderColor: '#007aff', backgroundColor: 'rgba(0,122,255,0.1)', fill: true, tension: 0.1, pointRadius: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { beginAtZero: true, max: currentYMax ? Number(currentYMax) : undefined } } }
+    });
+}
+
 window.showSubTab = function (type, isFirstOpen = false) {
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display = "none");
     const target = document.getElementById("sub" + type.charAt(0).toUpperCase() + type.slice(1));
@@ -262,27 +227,41 @@ window.showSubTab = function (type, isFirstOpen = false) {
     document.querySelectorAll(".subTab").forEach(b => b.classList.toggle("active", b.textContent.toLowerCase() === type));
 
     const now = new Date();
-    const historyDays = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
-    const monthsSummary = [...new Set(dailySummary.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
-    const yearsSummary = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort();
+    const days = [...new Set(dailySummary.map(h => new Date(h.timestamp).toLocaleDateString()))];
+    const months = [...new Set(dailySummary.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
+    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort();
 
     if (type === 'min') {
-        if (isFirstOpen) { setSliderToCurrent("dateSlider", historyDays, now.toLocaleDateString()); document.getElementById("hourSlider").value = now.getHours(); }
-        updateMinSliders();
+        if (isFirstOpen) { setSliderToCurrent("dateSlider", days, now.toLocaleDateString()); document.getElementById("hourSlider").value = now.getHours(); }
+        fetchHistoryAndRender('min');
     } else if (type === 'hour') {
-        setSliderToCurrent("hourDateSlider", historyDays, now.toLocaleDateString()); updateHourSliders();
+        setSliderToCurrent("hourDateSlider", days, now.toLocaleDateString()); fetchHistoryAndRender('hour');
     } else if (type === 'day') {
-        setSliderToCurrent("dayMonthSlider", monthsSummary, `${now.getFullYear()}/${now.getMonth()+1}`); updateDaySliders();
+        setSliderToCurrent("dayMonthSlider", months, `${now.getFullYear()}/${now.getMonth()+1}`); updateDaySliders();
     } else if (type === 'month') {
-        setSliderToCurrent("monthYearSlider", yearsSummary, now.getFullYear()); updateMonthSliders();
+        setSliderToCurrent("monthYearSlider", years, now.getFullYear()); updateMonthSliders();
     } else if (type === 'year') {
         updateYearSliders();
     }
 };
 
-document.getElementById("dateSlider").oninput = updateMinSliders;
-document.getElementById("hourSlider").oninput = updateMinSliders;
-document.getElementById("hourDateSlider").oninput = updateHourSliders;
+function setSliderToCurrent(sliderId, list, currentVal) {
+    const slider = document.getElementById(sliderId); if (!slider) return;
+    slider.max = Math.max(0, list.length - 1);
+    const idx = list.indexOf(currentVal);
+    slider.value = (idx !== -1) ? idx : slider.max;
+}
+
+window.toggleConfig = () => { const p = document.getElementById("configPanel"); p.style.display = p.style.display === "none" ? "flex" : "none"; };
+document.getElementById("yMaxSlider").oninput = function() {
+    currentYMax = (this.value >= 85000) ? null : this.value;
+    document.getElementById("yMaxDisplay").textContent = currentYMax ? currentYMax + "s" : "AUTO";
+    refreshChart();
+};
+
+document.getElementById("dateSlider").oninput = () => fetchHistoryAndRender('min');
+document.getElementById("hourSlider").oninput = () => fetchHistoryAndRender('min');
+document.getElementById("hourDateSlider").oninput = () => fetchHistoryAndRender('hour');
 document.getElementById("dayMonthSlider").oninput = updateDaySliders;
 document.getElementById("monthYearSlider").oninput = updateMonthSliders;
 
