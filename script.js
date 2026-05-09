@@ -36,33 +36,49 @@ function updateUI() {
 }
 
 /* =========================
-   ページ切り替え（重要修正）
+   ページ・タブ切り替え
 ========================= */
 window.showPage = function (page) {
     if (page === "timer") {
         timerPage.style.display = "block";
         graphPage.style.display = "none";
-    }
-
-    if (page === "graph") {
+    } else if (page === "graph") {
         timerPage.style.display = "none";
         graphPage.style.display = "block";
+        // グラフページ表示時に初期タブを表示
+        showSubTab('min');
     }
 };
 
+window.showSubTab = function(type) {
+    // 全サブページを隠す
+    ["Min", "Hour", "Day", "Week"].forEach(t => {
+        const el = document.getElementById("sub" + t);
+        if (el) el.style.display = "none";
+    });
+
+    // ターゲットを表示
+    const targetId = "sub" + type.charAt(0).toUpperCase() + type.slice(1);
+    const target = document.getElementById(targetId);
+    if (target) target.style.display = "block";
+
+    // グラフ初期化
+    if (type === "min") initMinSliders();
+    // 他のグラフ（hour, day）も同様にデータがあればここでrenderを呼ぶ
+};
+
 /* =========================
-   Firebase保存
+   Firebase保存・同期
 ========================= */
 function saveData() {
     const t = now();
-
     dataRef.update({
         seconds,
         mode,
         lastUpdate: t
     });
 
-    if (t - lastHistorySave > 10000) {
+    if (t - lastHistorySave > 10000) { // 10秒ごとに履歴保存
         db.ref("timebank/history").push({
             timestamp: t,
             seconds
@@ -71,56 +87,43 @@ function saveData() {
     }
 }
 
-/* =========================
-   オフライン補正
-========================= */
 function applyOfflineProgress() {
     if (mode === "stop") return;
-
     const diff = Math.floor((now() - lastUpdate) / 1000);
     if (!Number.isFinite(diff) || diff <= 0) return;
 
     if (mode === "up") seconds += diff;
-
     if (mode === "down") {
         seconds -= diff;
-        if (seconds < 0) {
-            seconds = 0;
-            mode = "stop";
-        }
+        if (seconds < 0) { seconds = 0; mode = "stop"; }
     }
 }
 
 /* =========================
-   タイマー
+   タイマー制御
 ========================= */
 function startLoop() {
     clearInterval(timer);
-
     timer = setInterval(() => {
         if (mode === "up") seconds++;
-
         if (mode === "down") {
             seconds--;
             if (seconds <= 0) {
-                seconds = 0;
-                mode = "stop";
+                seconds = 0; mode = "stop";
                 clearInterval(timer);
             }
         }
-
         updateUI();
         saveData();
     }, 1000);
 }
 
 /* =========================
-   チャート
-========================= */
+   チャート描画
+======================== */
 function renderChart(canvasId, labels, data, label) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
     const key = "_chart_" + canvasId;
 
@@ -133,7 +136,11 @@ function renderChart(canvasId, labels, data, label) {
             datasets: [{
                 label,
                 data,
-                spanGaps: true
+                borderColor: '#007aff',
+                backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                fill: true,
+                spanGaps: true,
+                tension: 0.3
             }]
         },
         options: {
@@ -144,12 +151,8 @@ function renderChart(canvasId, labels, data, label) {
     });
 }
 
-/* =========================
-   MIN
-========================= */
 function renderMinChart(dateStr, hour) {
     if (!dateStr) return;
-
     const [y, m, d] = dateStr.split("/").map(Number);
     const start = new Date(y, m - 1, d, hour, 0, 0).getTime();
     const end = start + 3600000;
@@ -157,7 +160,6 @@ function renderMinChart(dateStr, hour) {
     const labels = Array.from({ length: 60 }, (_, i) =>
         `${String(hour).padStart(2, "0")}:${String(i).padStart(2, "0")}`
     );
-
     const data = Array(60).fill(null);
 
     history.forEach(h => {
@@ -169,10 +171,9 @@ function renderMinChart(dateStr, hour) {
     renderChart("minChart", labels, data, `${dateStr} ${hour}:00`);
 }
 
-/* =========================
-   MIN UI
-========================= */
 function initMinSliders() {
+    if (history.length === 0) return;
+
     const days = [...new Set(history.map(h => {
         const d = new Date(h.timestamp);
         return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
@@ -183,23 +184,17 @@ function initMinSliders() {
     const hourSlider = document.getElementById("hourSlider");
     const hourLabel = document.getElementById("hourLabel");
 
-    if (days.length === 0) return;
-
     dateSlider.max = days.length - 1;
     dateSlider.value = days.length - 1;
-
-    hourSlider.value = new Date().getHours();
-
     dateLabel.textContent = days.at(-1);
-    hourLabel.textContent = hourSlider.value + "時";
-
-    dateSlider.oninput = () => {
-        dateLabel.textContent = days[dateSlider.value];
+    
+    hourSlider.oninput = () => {
+        hourLabel.textContent = hourSlider.value + "時";
         renderMinChart(days[dateSlider.value], +hourSlider.value);
     };
 
-    hourSlider.oninput = () => {
-        hourLabel.textContent = hourSlider.value + "時";
+    dateSlider.oninput = () => {
+        dateLabel.textContent = days[dateSlider.value];
         renderMinChart(days[dateSlider.value], +hourSlider.value);
     };
 
@@ -207,71 +202,11 @@ function initMinSliders() {
 }
 
 /* =========================
-   HOUR
-========================= */
-function renderHourChart(dateStr) {
-    if (!dateStr) return;
-
-    const [y, m, d] = dateStr.split("/").map(Number);
-    const start = new Date(y, m - 1, d).getTime();
-    const end = start + 86400000;
-
-    const labels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-    const data = Array(24).fill(null);
-
-    history.forEach(h => {
-        if (h.timestamp < start || h.timestamp >= end) return;
-        const hour = new Date(h.timestamp).getHours();
-        data[hour] = h.seconds;
-    });
-
-    renderChart("historyChart", labels, data, dateStr);
-}
-
-/* =========================
-   DAY
-========================= */
-function renderDayChart(monthStr) {
-    if (!monthStr) return;
-
-    const [y, m] = monthStr.split("/").map(Number);
-
-    const labels = Array.from({ length: 30 }, (_, i) => `${i + 1}`);
-    const data = Array(30).fill(null);
-
-    history.forEach(h => {
-        const d = new Date(h.timestamp);
-        if (d.getFullYear() !== y || d.getMonth() + 1 !== m) return;
-        data[d.getDate() - 1] = h.seconds;
-    });
-
-    renderChart("dayChart", labels, data, monthStr);
-}
-
-/* =========================
-   グラフタブ制御（修正済み）
-========================= */
-window.showSubTab = function(type) {
-
-    ["Min", "Hour", "Day", "Week"].forEach(t => {
-        const el = document.getElementById("sub" + t);
-        if (el) el.style.display = "none";
-    });
-
-    const target = document.getElementById("sub" + type.charAt(0).toUpperCase() + type.slice(1));
-    if (target) target.style.display = "block";
-
-    // ★重要：minだけ初期化
-    if (type === "min") initMinSliders();
-};
-
-/* =========================
-   Firebase同期
+   Firebaseイベント
 ========================= */
 dataRef.on("value", snap => {
     const data = snap.val();
     if (!data) return;
-
     seconds = data.seconds || 0;
     mode = data.mode || "stop";
     lastUpdate = data.lastUpdate || Date.now();
@@ -285,46 +220,35 @@ dataRef.on("value", snap => {
 
 db.ref("timebank/history").on("value", snap => {
     const data = snap.val();
-    history = data
-        ? Object.values(data).sort((a, b) => a.timestamp - b.timestamp)
-        : [];
+    history = data ? Object.values(data).sort((a, b) => a.timestamp - b.timestamp) : [];
 });
 
 /* =========================
-   ボタン
+   起動時処理
 ========================= */
 window.addEventListener("DOMContentLoaded", () => {
-
-    document.getElementById("upBtn").onclick = () => {
-        mode = "up";
-        saveData();
-        startLoop();
+    // ページ切り替えタブ
+    document.getElementById("timerTab").onclick = () => {
+        showPage("timer");
+        document.getElementById("timerTab").classList.add("active");
+        document.getElementById("graphTab").classList.remove("active");
     };
 
-    document.getElementById("downBtn").onclick = () => {
-        mode = "down";
-        saveData();
-        startLoop();
+    document.getElementById("graphTab").onclick = () => {
+        showPage("graph");
+        document.getElementById("graphTab").classList.add("active");
+        document.getElementById("timerTab").classList.remove("active");
     };
 
-    document.getElementById("stopBtn").onclick = () => {
-        mode = "stop";
-        clearInterval(timer);
-        saveData();
-    };
-
+    // 操作ボタン
+    document.getElementById("upBtn").onclick = () => { mode = "up"; saveData(); startLoop(); };
+    document.getElementById("downBtn").onclick = () => { mode = "down"; saveData(); startLoop(); };
+    document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(); };
     document.getElementById("resetBtn").onclick = () => {
-        seconds = 0;
-        mode = "stop";
-        history = [];
+        if(!confirm("リセットしますか？")) return;
+        seconds = 0; mode = "stop"; history = [];
         clearInterval(timer);
-
-        dataRef.set({
-            seconds: 0,
-            mode: "stop",
-            lastUpdate: now()
-        });
-
+        dataRef.set({ seconds: 0, mode: "stop", lastUpdate: now() });
         db.ref("timebank/history").remove();
         updateUI();
     };
