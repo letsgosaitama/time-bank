@@ -100,7 +100,7 @@ function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
     if (!activeTab) return;
     const name = activeTab.textContent.toLowerCase();
-    const updateMap = { min:updateMinSliders, hour:updateHourSliders, day:updateDaySliders, week:updateWeekSliders, month:updateMonthSliders, year:updateYearSliders };
+    const updateMap = { min:updateMinSliders, hour:updateHourSliders, day:updateDaySliders, month:updateMonthSliders, year:updateYearSliders };
     if(updateMap[name]) updateMap[name]();
 }
 
@@ -126,7 +126,7 @@ function setSliderToCurrent(sliderId, list, currentVal) {
     slider.max = Math.max(0, list.length - 1);
     const idx = list.indexOf(currentVal);
     if (idx !== -1) slider.value = idx;
-    else slider.value = slider.max; // 存在しない場合は最新に
+    else slider.value = slider.max;
 }
 
 /* =========================
@@ -169,19 +169,6 @@ function updateDaySliders() {
     const filtered = history.filter(h => { const d = new Date(h.timestamp); return d.getFullYear()===y && (d.getMonth()+1)===m; });
     const map = {}; filtered.forEach(h => map[new Date(h.timestamp).getDate()] = h.seconds);
     renderChart("dayChart", labels, labels.map((_,i) => map[i+1] ?? null), "日別推移");
-}
-
-function updateWeekSliders() {
-    const months = [...new Set(history.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
-    const selectedMonth = months[document.getElementById("weekMonthSlider").value];
-    document.getElementById("weekMonthLabel").textContent = selectedMonth || "-";
-    if (!selectedMonth) return;
-    const map = {};
-    history.forEach(h => {
-        const d = new Date(h.timestamp);
-        if(`${d.getFullYear()}/${d.getMonth()+1}` === selectedMonth) map[Math.ceil(d.getDate()/7)] = h.seconds;
-    });
-    renderChart("weekChart", ["第1週","第2週","第3週","第4週","第5週"], [1,2,3,4,5].map(w => map[w] ?? null), "週別推移");
 }
 
 function updateMonthSliders() {
@@ -234,9 +221,6 @@ window.showSubTab = function(type, isFirstOpen = false) {
     } else if (type === 'day') {
         setSliderToCurrent("dayMonthSlider", months, curMonth);
         updateDaySliders();
-    } else if (type === 'week') {
-        setSliderToCurrent("weekMonthSlider", months, curMonth);
-        updateWeekSliders();
     } else if (type === 'month') {
         setSliderToCurrent("monthYearSlider", years, curYear);
         updateMonthSliders();
@@ -249,7 +233,6 @@ document.getElementById("dateSlider").oninput = updateMinSliders;
 document.getElementById("hourSlider").oninput = updateMinSliders;
 document.getElementById("hourDateSlider").oninput = updateHourSliders;
 document.getElementById("dayMonthSlider").oninput = updateDaySliders;
-document.getElementById("weekMonthSlider").oninput = updateWeekSliders;
 document.getElementById("monthYearSlider").oninput = updateMonthSliders;
 
 document.getElementById("timerTab").onclick = () => {
