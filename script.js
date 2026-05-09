@@ -16,12 +16,11 @@ const db = firebase.database();
 const dataRef = db.ref("timebank");
 
 /* =========================
-   初期変数
+   変数管理
 ========================= */
 let timer = null;
 let seconds = 0;
 let mode = "stop";
-let lastUpdate = Date.now();
 let history = [];
 let currentYMax = null;
 
@@ -37,6 +36,7 @@ function formatTime(sec) {
 function saveData() {
     const t = Date.now();
     dataRef.update({ seconds, mode, lastUpdate: t });
+    // 10秒に1回履歴保存
     if (t - (window._lastPush || 0) > 10000) {
         db.ref("timebank/history").push({ timestamp: t, seconds });
         window._lastPush = t;
@@ -44,7 +44,7 @@ function saveData() {
 }
 
 /* =========================
-   タイマー操作
+   タイマー
 ========================= */
 function startLoop() {
     clearInterval(timer);
@@ -70,23 +70,28 @@ document.getElementById("resetBtn").onclick = () => {
 };
 
 /* =========================
-   Firebase同期
+   Firebase同期（重要）
 ========================= */
 dataRef.on("value", snap => {
     const d = snap.val(); if (!d) return;
     seconds = d.seconds || 0; mode = d.mode || "stop";
-    lastUpdate = d.lastUpdate || Date.now();
     if (mode !== "stop") startLoop();
     timerText.textContent = formatTime(seconds);
 });
 
+// 履歴データの取得
 db.ref("timebank/history").on("value", snap => {
     const d = snap.val();
     history = d ? Object.values(d).sort((a, b) => a.timestamp - b.timestamp) : [];
+    
+    // もしグラフページが開いていたら即座に反映
+    if(document.getElementById("graphPage").style.display === "block") {
+        refreshChart();
+    }
 });
 
 /* =========================
-   設定パネル・スライダー機能
+   グラフUI操作
 ========================= */
 window.toggleConfig = function() {
     const panel = document.getElementById("configPanel");
@@ -108,15 +113,15 @@ document.getElementById("yMaxSlider").oninput = function() {
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
     if (!activeTab) return;
-    const activeName = activeTab.textContent.toLowerCase();
-    if (activeName === "min") updateMinSliders();
-    else if (activeName === "hour") updateHourSliders();
-    else if (activeName === "day") updateDaySliders();
-    else if (activeName === "week") updateWeekSliders();
+    const name = activeTab.textContent.toLowerCase();
+    if (name === "min") updateMinSliders();
+    else if (name === "hour") updateHourSliders();
+    else if (name === "day") updateDaySliders();
+    else if (name === "week") updateWeekSliders();
 }
 
 /* =========================
-   グラフ描画
+   描画ロジック
 ========================= */
 function renderChart(canvasId, labels, data, label) {
     const canvas = document.getElementById(canvasId);
@@ -136,8 +141,8 @@ function renderChart(canvasId, labels, data, label) {
 
 function updateMinSliders() {
     const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
-    const dSlider = document.getElementById("dateSlider");
-    const selectedDate = days[dSlider.value];
+    const ds = document.getElementById("dateSlider");
+    const selectedDate = days[ds.value];
     const hour = parseInt(document.getElementById("hourSlider").value);
     document.getElementById("dateLabel").textContent = selectedDate || "-";
     document.getElementById("hourLabel").textContent = hour + "時";
@@ -146,8 +151,7 @@ function updateMinSliders() {
     const labels = Array.from({length:60}, (_,i) => `${hour}:${String(i).padStart(2,'0')}`);
     const filtered = history.filter(h => h.timestamp >= start && h.timestamp < start + 3600000);
     const map = {}; filtered.forEach(h => map[new Date(h.timestamp).getMinutes()] = h.seconds);
-    const data = labels.map((_,i) => map[i] || null);
-    renderChart("minChart", labels, data, "分次推移");
+    renderChart("minChart", labels, labels.map((_,i) => map[i] || null), "分次推移");
 }
 
 function updateHourSliders() {
@@ -159,8 +163,7 @@ function updateHourSliders() {
     const labels = Array.from({length:24}, (_,i) => i+":00");
     const filtered = history.filter(h => h.timestamp >= start && h.timestamp < start+86400000);
     const map = {}; filtered.forEach(h => map[new Date(h.timestamp).getHours()] = h.seconds);
-    const data = labels.map((_,i) => map[i] || null);
-    renderChart("historyChart", labels, data, "24時間推移");
+    renderChart("historyChart", labels, labels.map((_,i) => map[i] || null), "24時間推移");
 }
 
 function updateDaySliders() {
@@ -169,11 +172,11 @@ function updateDaySliders() {
     document.getElementById("dayMonthLabel").textContent = selectedMonth || "-";
     if (!selectedMonth) return;
     const [y, m] = selectedMonth.split("/").map(Number);
-    const labels = Array.from({length: new Date(y, m, 0).getDate()}, (_,i) => (i+1)+"日");
+    const lastDay = new Date(y, m, 0).getDate();
+    const labels = Array.from({length: lastDay}, (_,i) => (i+1)+"日");
     const filtered = history.filter(h => { const d = new Date(h.timestamp); return d.getFullYear()===y && (d.getMonth()+1)===m; });
     const map = {}; filtered.forEach(h => map[new Date(h.timestamp).getDate()] = h.seconds);
-    const data = labels.map((_,i) => map[i+1] || null);
-    renderChart("dayChart", labels, data, "日別推移");
+    renderChart("dayChart", labels, labels.map((_,i) => map[i+1] || null), "日別推移");
 }
 
 function updateWeekSliders() {
@@ -181,7 +184,6 @@ function updateWeekSliders() {
     const selectedMonth = months[document.getElementById("weekMonthSlider").value];
     document.getElementById("weekMonthLabel").textContent = selectedMonth || "-";
     if (!selectedMonth) return;
-    const labels = ["第1週", "第2週", "第3週", "第4週", "第5週"];
     const map = {};
     history.forEach(h => {
         const d = new Date(h.timestamp);
@@ -190,20 +192,23 @@ function updateWeekSliders() {
             map[week] = h.seconds;
         }
     });
-    const data = [1,2,3,4,5].map(w => map[w] || null);
-    renderChart("weekChart", labels, data, "週別推移");
+    renderChart("weekChart", ["第1週","第2週","第3週","第4週","第5週"], [1,2,3,4,5].map(w => map[w] || null), "週別推移");
 }
 
 /* =========================
    タブ切替
 ========================= */
 window.showSubTab = function(type) {
-    document.getElementById("configPanel").style.display = "none"; // 切り替え時にパネルを閉じる
+    document.getElementById("configPanel").style.display = "none";
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display="none");
     const target = document.getElementById("sub"+type.charAt(0).toUpperCase()+type.slice(1));
     if(target) target.style.display="block";
-    document.querySelectorAll(".subTab").forEach(b => b.classList.remove("active"));
-    if(event && event.currentTarget) event.currentTarget.classList.add("active");
+    
+    // サブタブの active クラスを切り替え
+    document.querySelectorAll(".subTab").forEach(b => {
+        b.classList.remove("active");
+        if(b.textContent.toLowerCase() === type) b.classList.add("active");
+    });
 
     const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
     const months = [...new Set(history.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
@@ -214,12 +219,14 @@ window.showSubTab = function(type) {
     if(type==='week') { document.getElementById("weekMonthSlider").max = Math.max(0, months.length-1); updateWeekSliders(); }
 };
 
+// スライダー操作イベント登録
 document.getElementById("dateSlider").oninput = updateMinSliders;
 document.getElementById("hourSlider").oninput = updateMinSliders;
 document.getElementById("hourDateSlider").oninput = updateHourSliders;
 document.getElementById("dayMonthSlider").oninput = updateDaySliders;
 document.getElementById("weekMonthSlider").oninput = updateWeekSliders;
 
+// メインタブ切替
 document.getElementById("timerTab").onclick = () => {
     document.getElementById("timerPage").style.display="block";
     document.getElementById("graphPage").style.display="none";
@@ -231,5 +238,6 @@ document.getElementById("graphTab").onclick = () => {
     document.getElementById("graphPage").style.display="block";
     document.getElementById("graphTab").classList.add("active");
     document.getElementById("timerTab").classList.remove("active");
+    // ここで最初から min を表示
     showSubTab('min');
 };
