@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Time Bank Pro</title>
-    <!-- Faviconのエラー(404)を防ぐ -->
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -39,11 +38,17 @@
         </div>
 
         <div class="graph-main-layout">
-            <!-- 最新仕様の縦スライダー -->
-            <div class="y-axis-container">
-                <span class="y-label">MAX</span>
-                <input type="range" id="yMaxSlider" min="60" max="86400" step="60">
-                <span id="yMaxDisplay">AUTO</span>
+            <!-- 設定ボタン -->
+            <button id="graphConfigBtn" onclick="toggleConfig()">⚙️ スケール設定</button>
+
+            <!-- 隠し設定パネル -->
+            <div id="configPanel" class="config-panel" style="display:none;">
+                <div class="y-axis-container">
+                    <span class="y-label">縦軸MAX</span>
+                    <input type="range" id="yMaxSlider" min="60" max="86400" step="60">
+                    <span id="yMaxDisplay">AUTO</span>
+                </div>
+                <button class="close-panel-btn" onclick="toggleConfig()">閉じる</button>
             </div>
 
             <div class="charts-wrapper">
