@@ -279,7 +279,7 @@ function renderHourChart(dateStr) {
 /* =========================
    Firebase同期
 ========================= */
-Chart.register(window.ChartZoom);
+//Chart.register(window.ChartZoom);
 
 dataRef.on("value", snap => {
     const data = snap.val();
