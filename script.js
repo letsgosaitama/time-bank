@@ -114,7 +114,7 @@ db.ref("timebank/daily_summary").on("value", snap => {
 });
 
 /* =========================
-   グラフ描画（プラス/マイナス色分け版）
+   グラフ描画（0基準・色分け完璧版）
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
@@ -211,7 +211,6 @@ function renderChart(canvasId, labels, data, label) {
     const key = "_chart_" + canvasId;
     if (window[key]) window[key].destroy();
 
-    // Chart.jsの「Segment」と「Grid」機能を使って0のラインで色を分ける
     window[key] = new Chart(ctx, {
         type: "line",
         data: {
@@ -219,18 +218,18 @@ function renderChart(canvasId, labels, data, label) {
             datasets: [{
                 label,
                 data,
-                // 線の色を0を境に分ける
+                // 0の位置を正確に追跡して色分け
                 borderColor: (context) => {
                     const chart = context.chart;
-                    const {ctx, chartArea} = chart;
-                    if (!chartArea) return '#007aff';
-                    return getGradient(ctx, chartArea);
+                    const {ctx, chartArea, scales} = chart;
+                    if (!chartArea || !scales.y) return '#007aff';
+                    return getExactGradient(ctx, chartArea, scales.y, '#007aff', '#ff3b30');
                 },
                 backgroundColor: (context) => {
                     const chart = context.chart;
-                    const {ctx, chartArea} = chart;
-                    if (!chartArea) return 'rgba(0,122,255,0.1)';
-                    return getGradient(ctx, chartArea, true);
+                    const {ctx, chartArea, scales} = chart;
+                    if (!chartArea || !scales.y) return 'rgba(0,122,255,0.1)';
+                    return getExactGradient(ctx, chartArea, scales.y, 'rgba(0,122,255,0.2)', 'rgba(255,59,48,0.2)');
                 },
                 fill: true,
                 tension: 0.1,
@@ -247,7 +246,7 @@ function renderChart(canvasId, labels, data, label) {
                     beginAtZero: false,
                     max: currentYMax ? Number(currentYMax) : undefined,
                     grid: {
-                        // 0のライン（借金の境界線）を強調する
+                        // 0のラインを太く、赤く
                         color: (context) => (context.tick.value === 0 ? '#ff3b30' : '#e5e5e5'),
                         lineWidth: (context) => (context.tick.value === 0 ? 2 : 1)
                     }
@@ -257,29 +256,21 @@ function renderChart(canvasId, labels, data, label) {
     });
 }
 
-// 0のラインで色を切り替えるグラデーション関数
-function getGradient(ctx, chartArea, isBackground = false) {
-    const chartHeight = chartArea.bottom - chartArea.top;
-    // 0の位置（ピクセル）を取得
-    // データの最小値と最大値から0がどの高さにあるかを計算
-    // ※今回は簡易的に中心付近で色が分かれるように見えますが、厳密にはスケール計算が必要なため、
-    // 0のラインを基準に青(プラス)と赤(マイナス)に塗り分ける設定にします。
+function getExactGradient(ctx, chartArea, yScale, colorPlus, colorMinus) {
+    const zeroPos = yScale.getPixelForValue(0);
     const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
     
-    // Y軸の0の位置が動的なので、Chart.jsのデフォルトのセグメント色分け機能（下で補足）が理想的ですが、
-    // ここでは「上が青、下が赤」の固定グラデーションを定義します。
-    // ※より厳密にするには yAxis.getPixelForValue(0) を使いますが、まずはシンプルに！
-    if (isBackground) {
-        gradient.addColorStop(0, 'rgba(0,122,255,0.2)'); // プラスは青
-        gradient.addColorStop(0.5, 'rgba(0,122,255,0.05)');
-        gradient.addColorStop(0.5, 'rgba(255,59,48,0.05)');
-        gradient.addColorStop(1, 'rgba(255,59,48,0.2)'); // マイナスは赤
-    } else {
-        gradient.addColorStop(0, '#007aff');
-        gradient.addColorStop(0.5, '#007aff');
-        gradient.addColorStop(0.5, '#ff3b30');
-        gradient.addColorStop(1, '#ff3b30');
-    }
+    // 0の位置がグラフ領域全体に対してどの割合（0〜1）にあるかを計算
+    let stop = (zeroPos - chartArea.top) / (chartArea.bottom - chartArea.top);
+    
+    // 全てプラス、または全てマイナスの時のエラー防止
+    stop = Math.max(0, Math.min(1, stop));
+
+    gradient.addColorStop(0, colorPlus);
+    gradient.addColorStop(stop, colorPlus);
+    gradient.addColorStop(stop, colorMinus);
+    gradient.addColorStop(1, colorMinus);
+    
     return gradient;
 }
 
