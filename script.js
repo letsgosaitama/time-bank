@@ -49,17 +49,10 @@ function saveData(force = false) {
     const t = now.getTime();
     const todayStr = now.toLocaleDateString().replace(/\//g, '-');
 
-    // forceがtrue（停止時など）か、前回の保存から5分(300,000ms)経過した場合のみ書き込み
-    if (force || (t - lastPush > 300000)) {
-        console.log("Saving to Firebase...");
-        
-        // 基本ステータスの更新
+    if (force || (t - lastPush > 300000)) { // 5分毎または強制保存
         dataRef.update({ seconds, mode, lastUpdate: t });
-
-        // 詳細履歴とサマリーの保存
         db.ref(`timebank/history/${todayStr}`).push({ timestamp: t, seconds });
         db.ref(`timebank/daily_summary/${todayStr}`).set({ timestamp: t, seconds });
-
         lastPush = t;
         cleanupOldHistory();
     }
@@ -72,9 +65,7 @@ function cleanupOldHistory() {
         if (!historyData) return;
         Object.keys(historyData).forEach(dateStr => {
             const folderDate = new Date(dateStr).getTime();
-            if (folderDate < sevenDaysAgo) {
-                db.ref(`timebank/history/${dateStr}`).remove();
-            }
+            if (folderDate < sevenDaysAgo) db.ref(`timebank/history/${dateStr}`).remove();
         });
     });
 }
@@ -91,19 +82,13 @@ function startLoop() {
             if (seconds <= 0) { seconds = 0; mode = "stop"; clearInterval(timer); saveData(true); }
         }
         timerText.textContent = formatTime(seconds);
-        
-        // ここで5分判定チェックが走る（forceなし）
         saveData(false);
     }, 1000);
 }
 
 document.getElementById("upBtn").onclick = () => { mode = "up"; startLoop(); };
 document.getElementById("downBtn").onclick = () => { mode = "down"; startLoop(); };
-document.getElementById("stopBtn").onclick = () => { 
-    mode = "stop"; 
-    clearInterval(timer); 
-    saveData(true); // 停止時は即座に保存
-};
+document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(true); };
 document.getElementById("resetBtn").onclick = () => {
     if (!confirm("全データを完全に削除しますか？")) return;
     seconds = 0; mode = "stop";
@@ -117,7 +102,6 @@ document.getElementById("resetBtn").onclick = () => {
 ========================= */
 dataRef.on("value", snap => {
     const d = snap.val(); if (!d) return;
-    // ローカルで動いている間は同期による上書きを防ぐ（簡易的な競合回避）
     if (mode === "stop") {
         seconds = d.seconds || 0;
         mode = d.mode || "stop";
@@ -133,12 +117,13 @@ db.ref("timebank/daily_summary").on("value", snap => {
 });
 
 /* =========================
-   グラフ描画（以下変更なし）
+   グラフ描画
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
     if (!activeTab) return;
     const name = activeTab.textContent.toLowerCase();
+    
     if (name === 'min' || name === 'hour') {
         fetchHistoryAndRender(name);
     } else {
@@ -149,29 +134,47 @@ function refreshChart() {
 
 function fetchHistoryAndRender(type) {
     const ds = (type === 'min') ? document.getElementById("dateSlider") : document.getElementById("hourDateSlider");
+    
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val() || {};
         const days = Object.keys(hData).sort();
-        ds.max = Math.max(0, days.length - 1);
+        if (days.length === 0) return;
+
+        // 日付スライダーの最大値を設定し、最新（今日）を選択
+        ds.max = days.length - 1;
+        if (ds.dataset.initialized !== "true") {
+            ds.value = ds.max; // 初期表示は最新日
+            ds.dataset.initialized = "true";
+        }
+
         const selectedDate = days[ds.value];
-        if (!selectedDate) return;
-        const dayHistory = Object.values(hData[selectedDate]).sort((a, b) => a.timestamp - b.timestamp);
+        const dayHistory = Object.values(hData[selectedDate] || {}).sort((a, b) => a.timestamp - b.timestamp);
+        
         if (type === 'min') renderMinChart(selectedDate, dayHistory);
         else renderHourChart(selectedDate, dayHistory);
     });
 }
 
 function renderMinChart(selectedDate, dayHistory) {
-    const hour = parseInt(document.getElementById("hourSlider").value);
+    const hSlider = document.getElementById("hourSlider");
+    
+    // 【追加】初めてグラフを開いた時、スライダーを現在の時刻に合わせる
+    if (hSlider.dataset.initialized !== "true") {
+        hSlider.value = new Date().getHours();
+        hSlider.dataset.initialized = "true";
+    }
+
+    const hour = parseInt(hSlider.value);
     document.getElementById("dateLabel").textContent = selectedDate;
     document.getElementById("hourLabel").textContent = hour + "時";
+    
     const labels = Array.from({length:60}, (_,i) => `${hour}:${String(i).padStart(2,'0')}`);
     const map = {};
     dayHistory.forEach(h => {
         const d = new Date(h.timestamp);
         if (d.getHours() === hour) map[d.getMinutes()] = h.seconds;
     });
-    renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次（5分毎プロット）");
+    renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次（5分毎更新）");
 }
 
 function renderHourChart(selectedDate, dayHistory) {
@@ -182,7 +185,7 @@ function renderHourChart(selectedDate, dayHistory) {
         const d = new Date(h.timestamp);
         map[d.getHours()] = h.seconds;
     });
-    renderChart("historyChart", labels, labels.map((_,i) => map[i] ?? null), "時間次（直近7日）");
+    renderChart("historyChart", labels, labels.map((_,i) => map[i] ?? null), "時間次");
 }
 
 function updateDaySliders() {
@@ -258,5 +261,16 @@ document.getElementById("hourDateSlider").oninput = refreshChart;
 document.getElementById("dayMonthSlider").oninput = refreshChart;
 document.getElementById("monthYearSlider").oninput = refreshChart;
 
-document.getElementById("timerTab").onclick = () => { document.getElementById("timerPage").style.display = "block"; document.getElementById("graphPage").style.display = "none"; document.getElementById("timerTab").classList.add("active"); document.getElementById("graphTab").classList.remove("active"); };
-document.getElementById("graphTab").onclick = () => { document.getElementById("timerPage").style.display = "none"; document.getElementById("graphPage").style.display = "block"; document.getElementById("graphTab").classList.add("active"); document.getElementById("timerTab").classList.remove("active"); showSubTab('min', true); };
+document.getElementById("timerTab").onclick = () => { 
+    document.getElementById("timerPage").style.display = "block"; 
+    document.getElementById("graphPage").style.display = "none"; 
+    document.getElementById("timerTab").classList.add("active"); 
+    document.getElementById("graphTab").classList.remove("active"); 
+};
+document.getElementById("graphTab").onclick = () => { 
+    document.getElementById("timerPage").style.display = "none"; 
+    document.getElementById("graphPage").style.display = "block"; 
+    document.getElementById("graphTab").classList.add("active"); 
+    document.getElementById("timerTab").classList.remove("active"); 
+    showSubTab('min', true); 
+};
