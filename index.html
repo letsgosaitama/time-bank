@@ -27,13 +27,12 @@
     <!-- グラフページ -->
     <div id="graphPage" style="display:none;">
         <div class="subTabs">
-            <button class="subTab active" id="btnSubMin" onclick="showSubTab('min')">MIN</button>
-            <button class="subTab" id="btnSubHour" onclick="showSubTab('hour')">HOUR</button>
-            <button class="subTab" id="btnSubDay" onclick="showSubTab('day')">DAY</button>
-            <button class="subTab" id="btnSubWeek" onclick="showSubTab('week')">WEEK</button>
+            <button class="subTab active" onclick="showSubTab('min')">MIN</button>
+            <button class="subTab" onclick="showSubTab('hour')">HOUR</button>
+            <button class="subTab" onclick="showSubTab('day')">DAY</button>
+            <button class="subTab" onclick="showSubTab('week')">WEEK</button>
         </div>
 
-        <!-- MIN (分単位グラフ) -->
         <div id="subMin">
             <div class="minControls">
                 <div class="sliderRow">
@@ -47,56 +46,28 @@
                     <span id="hourLabel">0時</span>
                 </div>
             </div>
-            <div class="chartContainer" style="position: relative; height:300px;">
+            <div class="chartContainer" style="height:300px; position:relative;">
                 <canvas id="minChart"></canvas>
             </div>
         </div>
 
-        <!-- HOUR (時間単位グラフ) -->
         <div id="subHour" style="display:none;">
-            <div class="minControls">
-                <div class="sliderRow">
-                    <label>年月日</label>
-                    <input type="range" id="hourDateSlider" min="0" max="0" value="0">
-                    <span id="hourDateLabel">-</span>
-                </div>
-            </div>
-            <div class="chartContainer" style="position: relative; height:300px;">
+            <div class="chartContainer" style="height:300px; position:relative;">
                 <canvas id="historyChart"></canvas>
             </div>
         </div>
-
-        <!-- DAY (日単位グラフ) -->
-        <div id="subDay" style="display:none;">
-            <div class="minControls">
-                <div class="sliderRow">
-                    <label>年月</label>
-                    <input type="range" id="dayMonthSlider" min="0" max="0" value="0">
-                    <span id="dayMonthLabel">-</span>
-                </div>
-            </div>
-            <div class="chartContainer" style="position: relative; height:300px;">
-                <canvas id="dayChart"></canvas>
-            </div>
-        </div>
-
-        <!-- WEEK (週単位グラフ - 枠のみ) -->
-        <div id="subWeek" style="display:none;">
-            <div class="chartContainer" style="position: relative; height:300px;">
-                <canvas id="weekChart"></canvas>
-            </div>
-        </div>
+        
+        <div id="subDay" style="display:none;"><div class="chartContainer" style="height:300px; position:relative;"><canvas id="dayChart"></canvas></div></div>
+        <div id="subWeek" style="display:none;"><div class="chartContainer" style="height:300px; position:relative;"><canvas id="weekChart"></canvas></div></div>
     </div>
 
-    <!-- Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
-
-    <!-- Firebase -->
+    <!-- 外部ライブラリ (ブロック対策としてumd版や別CDNを検討) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
     <script>
+        // Firebase初期化 (Tracking Prevention対策)
         const firebaseConfig = {
             apiKey: "AIzaSyBOxVHqeHmdL3KVvUDFCGh6hGAd8LbEL2w",
             authDomain: "timebank-1c2f8.firebaseapp.com",
@@ -106,9 +77,15 @@
             messagingSenderId: "879959904736",
             appId: "1:879959904736:web:bee79380194a6b3ba1db85"
         };
-        firebase.initializeApp(firebaseConfig);
+        
+        try {
+            firebase.initializeApp(firebaseConfig);
+            // ストレージへのアクセスがブロックされても通信を優先する
+            firebase.database().goOnline();
+        } catch (e) {
+            console.error("Firebase init error:", e);
+        }
     </script>
-
     <script src="script.js"></script>
 </body>
 </html>
