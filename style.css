@@ -8,15 +8,15 @@ body { background: #111; color: white; display: flex; flex-direction: column; al
 .buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 button { font-size: 18px; padding: 12px 20px; background: #222; color: white; border: 1px solid #555; cursor: pointer; border-radius: 4px; }
 
-.subTabs { display: flex; gap: 5px; margin-bottom: 15px; }
-.subTab { font-size: 12px; padding: 6px 12px; background: #222; color: #888; border: 1px solid #444; cursor: pointer; }
+.subTabs { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center; width: 95vw; }
+.subTab { font-size: 11px; padding: 6px 10px; background: #222; color: #888; border: 1px solid #444; cursor: pointer; }
 .subTab.active { color: white; border-color: #007aff; background: #1a1a1a; }
 
 .graph-main-layout { position: relative; width: 95vw; }
 
 #graphConfigBtn {
     position: absolute; right: 0; top: -45px;
-    font-size: 12px; padding: 5px 10px; background: #222; border: 1px solid #444;
+    font-size: 11px; padding: 5px 8px; background: #222; border: 1px solid #444; z-index: 50;
 }
 
 .config-panel {
@@ -35,9 +35,9 @@ button { font-size: 18px; padding: 12px 20px; background: #222; color: white; bo
 .close-panel-btn { font-size: 10px; padding: 4px 8px; background: #444; border: none; color: white; border-radius: 3px; }
 
 .charts-wrapper { width: 100%; }
-.chartContainer { width: 100%; height: 55vh; background: #181818; border: 1px solid #333; border-radius: 4px; }
+.chartContainer { width: 100%; height: 50vh; background: #181818; border: 1px solid #333; border-radius: 4px; margin-bottom: 20px; }
 
 .minControls { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; background: #181818; padding: 10px; border-radius: 4px; }
 .sliderRow { display: flex; align-items: center; gap: 10px; font-size: 11px; }
 .sliderRow input { flex: 1; }
-.sliderRow span { width: 80px; text-align: right; color: #007aff; }
+.sliderRow span { width: 90px; text-align: right; color: #007aff; font-weight: bold; }
