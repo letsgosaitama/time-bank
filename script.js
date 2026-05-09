@@ -16,7 +16,7 @@ const db = firebase.database();
 const dataRef = db.ref("timebank");
 
 /* =========================
-   変数・タイマー
+   初期変数
 ========================= */
 let timer = null;
 let seconds = 0;
@@ -63,7 +63,7 @@ document.getElementById("upBtn").onclick = () => { mode = "up"; startLoop(); };
 document.getElementById("downBtn").onclick = () => { mode = "down"; startLoop(); };
 document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(); };
 document.getElementById("resetBtn").onclick = () => {
-    if (!confirm("リセット？")) return;
+    if (!confirm("リセットしますか？")) return;
     seconds = 0; mode = "stop";
     dataRef.set({ seconds: 0, mode: "stop", lastUpdate: Date.now() });
     db.ref("timebank/history").remove();
@@ -90,7 +90,6 @@ db.ref("timebank/history").on("value", snap => {
 ========================= */
 document.getElementById("yMaxSlider").oninput = function() {
     const val = parseInt(this.value);
-    // スライダー最大付近は自動調整(null)
     if (val >= 85000) {
         currentYMax = null;
         document.getElementById("yMaxDisplay").textContent = "AUTO";
@@ -102,18 +101,24 @@ document.getElementById("yMaxSlider").oninput = function() {
 };
 
 function refreshChart() {
-    const active = document.querySelector(".subTab.active").textContent.toLowerCase();
-    if (active === "min") updateMinSliders();
-    else if (active === "hour") updateHourSliders();
-    else if (active === "day") updateDaySliders();
-    else if (active === "week") updateWeekSliders();
+    // アクティブなタブを安全に取得
+    const activeTab = document.querySelector(".subTab.active");
+    if (!activeTab) return; // タブが未選択なら何もしない(エラー防止)
+
+    const activeName = activeTab.textContent.toLowerCase();
+    if (activeName === "min") updateMinSliders();
+    else if (activeName === "hour") updateHourSliders();
+    else if (activeName === "day") updateDaySliders();
+    else if (activeName === "week") updateWeekSliders();
 }
 
 /* =========================
    グラフ描画
 ========================= */
 function renderChart(canvasId, labels, data, label) {
-    const ctx = document.getElementById(canvasId).getContext("2d");
+    const canvas = document.getElementById(canvasId);
+    if(!canvas) return;
+    const ctx = canvas.getContext("2d");
     const key = "_chart_" + canvasId;
     if (window[key]) window[key].destroy();
     window[key] = new Chart(ctx, {
@@ -126,11 +131,10 @@ function renderChart(canvasId, labels, data, label) {
     });
 }
 
-// 各グラフ更新関数 (簡略化)
 function updateMinSliders() {
     const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
-    const dIdx = document.getElementById("dateSlider").value;
-    const selectedDate = days[dIdx];
+    const dSlider = document.getElementById("dateSlider");
+    const selectedDate = days[dSlider.value];
     const hour = parseInt(document.getElementById("hourSlider").value);
     document.getElementById("dateLabel").textContent = selectedDate || "-";
     document.getElementById("hourLabel").textContent = hour + "時";
@@ -176,7 +180,6 @@ function updateWeekSliders() {
     document.getElementById("weekMonthLabel").textContent = selectedMonth || "-";
     if (!selectedMonth) return;
     const labels = ["第1週", "第2週", "第3週", "第4週", "第5週"];
-    // 簡易的な週計算
     const map = {};
     history.forEach(h => {
         const d = new Date(h.timestamp);
@@ -190,21 +193,23 @@ function updateWeekSliders() {
 }
 
 /* =========================
-   タブ・イベント
+   タブ・切替
 ========================= */
 window.showSubTab = function(type) {
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display="none");
-    document.getElementById("sub"+type.charAt(0).toUpperCase()+type.slice(1)).style.display="block";
+    const target = document.getElementById("sub"+type.charAt(0).toUpperCase()+type.slice(1));
+    if(target) target.style.display="block";
+
     document.querySelectorAll(".subTab").forEach(b => b.classList.remove("active"));
-    event.currentTarget.classList.add("active");
+    if(event && event.currentTarget) event.currentTarget.classList.add("active");
 
     const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
     const months = [...new Set(history.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
     
-    if(type==='min') { document.getElementById("dateSlider").max = days.length-1; updateMinSliders(); }
-    if(type==='hour') { document.getElementById("hourDateSlider").max = days.length-1; updateHourSliders(); }
-    if(type==='day') { document.getElementById("dayMonthSlider").max = months.length-1; updateDaySliders(); }
-    if(type==='week') { document.getElementById("weekMonthSlider").max = months.length-1; updateWeekSliders(); }
+    if(type==='min') { document.getElementById("dateSlider").max = Math.max(0, days.length-1); updateMinSliders(); }
+    if(type==='hour') { document.getElementById("hourDateSlider").max = Math.max(0, days.length-1); updateHourSliders(); }
+    if(type==='day') { document.getElementById("dayMonthSlider").max = Math.max(0, months.length-1); updateDaySliders(); }
+    if(type==='week') { document.getElementById("weekMonthSlider").max = Math.max(0, months.length-1); updateWeekSliders(); }
 };
 
 document.getElementById("dateSlider").oninput = updateMinSliders;
