@@ -34,7 +34,9 @@ function formatTime(sec) {
 }
 
 function updateUI() {
-    timerText.textContent = formatTime(seconds);
+    if (timerText) {
+        timerText.textContent = formatTime(seconds);
+    }
 }
 
 /* =========================
@@ -266,59 +268,39 @@ db.ref("timebank/history").on("value", snap => {
 });
 
 /* =========================
-   ボタン（超重要）
+   ★ボタン（ここが唯一の正解）
 ========================= */
-window.addEventListener("DOMContentLoaded", () => {
-
-    document.getElementById("upBtn").onclick = () => {
-        mode = "up";
-        saveData();
-        startLoop();
-    };
-
-    document.getElementById("downBtn").onclick = () => {
-        mode = "down";
-        saveData();
-        startLoop();
-    };
-
-    document.getElementById("stopBtn").onclick = () => {
-        mode = "stop";
-        clearInterval(timer);
-        saveData();
-    };
-
-    document.getElementById("resetBtn").onclick = () => {
-        seconds = 0;
-        mode = "stop";
-        history = [];
-        clearInterval(timer);
-        dataRef.set({ seconds: 0, mode: "stop", lastUpdate: now() });
-        db.ref("timebank/history").remove();
-        updateUI();
-    };
-});
-
 function bindButtons() {
-    document.getElementById("upBtn").onclick = () => {
+
+    const up = document.getElementById("upBtn");
+    const down = document.getElementById("downBtn");
+    const stop = document.getElementById("stopBtn");
+    const reset = document.getElementById("resetBtn");
+
+    if (!up || !down || !stop || !reset) {
+        console.warn("ボタン取得できてない（HTML確認）");
+        return;
+    }
+
+    up.onclick = () => {
         mode = "up";
         saveData();
         startLoop();
     };
 
-    document.getElementById("downBtn").onclick = () => {
+    down.onclick = () => {
         mode = "down";
         saveData();
         startLoop();
     };
 
-    document.getElementById("stopBtn").onclick = () => {
+    stop.onclick = () => {
         mode = "stop";
         clearInterval(timer);
         saveData();
     };
 
-    document.getElementById("resetBtn").onclick = () => {
+    reset.onclick = () => {
         seconds = 0;
         mode = "stop";
         history = [];
@@ -327,7 +309,7 @@ function bindButtons() {
         dataRef.set({
             seconds: 0,
             mode: "stop",
-            lastUpdate: Date.now()
+            lastUpdate: now()
         });
 
         db.ref("timebank/history").remove();
@@ -335,5 +317,6 @@ function bindButtons() {
     };
 }
 
-/* ★ここが重要（最後に必ず実行） */
+/* ★必ず最後 */
 bindButtons();
+updateUI();
