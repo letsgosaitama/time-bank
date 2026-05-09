@@ -9,6 +9,7 @@ body {
     min-height: 100vh;
 }
 
+/* ===== メインタブ ===== */
 .tabs {
     display: flex;
     gap: 10px;
@@ -16,6 +17,21 @@ body {
     margin-bottom: 30px;
 }
 
+.tab {
+    font-size: 20px;
+    padding: 12px 24px;
+    background: #222;
+    color: #888;
+    border: 1px solid #444;
+    cursor: pointer;
+}
+
+.tab.active {
+    color: white;
+    border-color: white;
+}
+
+/* ===== タイマー ===== */
 #timer {
     font-size: 80px;
     margin-bottom: 40px;
@@ -24,6 +40,8 @@ body {
 .buttons {
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 button {
@@ -39,6 +57,7 @@ button:hover {
     background: #333;
 }
 
+/* ===== グラフページ ===== */
 #graphPage {
     width: 100%;
     display: flex;
@@ -46,16 +65,74 @@ button:hover {
     align-items: center;
 }
 
+/* ===== サブタブ ===== */
+.subTabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.subTab {
+    font-size: 16px;
+    padding: 10px 20px;
+    background: #222;
+    color: #888;
+    border: 1px solid #444;
+    cursor: pointer;
+}
+
+.subTab.active {
+    color: white;
+    border-color: white;
+}
+
+/* ===== グラフボタン ===== */
 .graphButtons {
     display: flex;
     gap: 10px;
     margin-bottom: 20px;
     flex-wrap: wrap;
+    justify-content: center;
 }
 
+/* ===== チャートコンテナ ===== */
 .chartContainer {
     width: 95vw;
-    height: 70vh;
+    height: 60vh;
     border: 1px solid #444;
     background: #181818;
+}
+
+/* ===== MINスライダー ===== */
+.minControls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 90vw;
+    margin-bottom: 20px;
+}
+
+.sliderRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sliderRow label {
+    width: 40px;
+    font-size: 16px;
+    color: #aaa;
+}
+
+.sliderRow input[type="range"] {
+    flex: 1;
+    accent-color: white;
+}
+
+.sliderRow span {
+    width: 80px;
+    font-size: 16px;
+    text-align: right;
 }
