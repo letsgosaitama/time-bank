@@ -46,6 +46,7 @@ function saveData() {
         lastUpdate: t
     });
 
+    // 10秒ごとに履歴を追加
     if (t - lastHistorySave > 10000) {
         db.ref("timebank/history").push({
             timestamp: t,
@@ -70,7 +71,7 @@ function applyOfflineProgress() {
 }
 
 /* =========================
-   タイマー
+   タイマー制御
 ========================= */
 function startLoop() {
     clearInterval(timer);
@@ -90,7 +91,7 @@ function startLoop() {
 }
 
 /* =========================
-   汎用チャート描画
+   汎用チャート描画関数
 ========================= */
 function renderChart(canvasId, labels, data, label) {
     const ctx = document.getElementById(canvasId).getContext("2d");
@@ -119,202 +120,133 @@ function renderChart(canvasId, labels, data, label) {
                     pan: { enabled: true, mode: "x" },
                     zoom: { pinch: { enabled: true }, wheel: { enabled: true }, mode: "x" }
                 }
+            },
+            scales: {
+                y: { beginAtZero: true }
             }
         }
     });
 }
 
 /* =========================
-   MINグラフ (1時間分固定)
+   各グラフの初期化と描画 (MIN/HOUR/DAY/WEEK)
 ========================= */
+
+// --- MIN (1時間分) ---
 function initMinSliders() {
     const days = [...new Set(history.map(h => {
         const d = new Date(h.timestamp);
         return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
     }))];
-
-    const dateSlider = document.getElementById("dateSlider");
-    const dateLabel = document.getElementById("dateLabel");
-    const hourSlider = document.getElementById("hourSlider");
-    const hourLabel = document.getElementById("hourLabel");
-
-    if (days.length === 0) { dateLabel.textContent = "-"; return; }
-
-    dateSlider.max = Math.max(0, days.length - 1);
-    dateSlider.value = days.length - 1;
-    dateLabel.textContent = days[days.length - 1];
-
-    dateSlider.oninput = () => {
-        dateLabel.textContent = days[dateSlider.value];
-        renderMinChart(days[dateSlider.value], Number(hourSlider.value));
-    };
-    hourSlider.oninput = () => {
-        hourLabel.textContent = `${hourSlider.value}時`;
-        renderMinChart(days[dateSlider.value], Number(hourSlider.value));
-    };
-
-    renderMinChart(days[days.length - 1], Number(hourSlider.value));
+    const dSlider = document.getElementById("dateSlider");
+    const hSlider = document.getElementById("hourSlider");
+    if (days.length === 0) return;
+    dSlider.max = days.length - 1;
+    document.getElementById("dateLabel").textContent = days[dSlider.value];
+    renderMinChart(days[dSlider.value], Number(hSlider.value));
 }
 
 function renderMinChart(dateStr, hour) {
     if (!dateStr) return;
     const [y, m, d] = dateStr.split("/").map(Number);
     const start = new Date(y, m - 1, d, hour, 0, 0).getTime();
-    const end = start + 3600000;
-
-    const fixedLabels = [];
-    for (let min = 0; min < 60; min++) {
-        fixedLabels.push(`${String(hour).padStart(2,"0")}:${String(min).padStart(2,"0")}`);
-    }
-
-    const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
-    const byMinute = {};
-    filtered.forEach(h => { byMinute[new Date(h.timestamp).getMinutes()] = h.seconds; });
-
-    const data = fixedLabels.map((_, i) => byMinute[i] !== undefined ? byMinute[i] : null);
-    renderChart("minChart", fixedLabels, data, `${dateStr} ${hour}時台`);
+    const labels = Array.from({length: 60}, (_, i) => `${String(hour).padStart(2,"0")}:${String(i).padStart(2,"0")}`);
+    const filtered = history.filter(h => h.timestamp >= start && h.timestamp < start + 3600000);
+    const map = {};
+    filtered.forEach(h => { map[new Date(h.timestamp).getMinutes()] = h.seconds; });
+    const data = labels.map((_, i) => map[i] !== undefined ? map[i] : null);
+    renderChart("minChart", labels, data, `${dateStr} ${hour}時台`);
 }
 
-/* =========================
-   HOURグラフ (24時間固定)
-========================= */
+// --- HOUR (24時間) ---
 function initHourSliders() {
     const days = [...new Set(history.map(h => {
         const d = new Date(h.timestamp);
         return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
     }))];
-
     const slider = document.getElementById("hourDateSlider");
-    const label = document.getElementById("hourDateLabel");
-
-    if (days.length === 0) { label.textContent = "-"; return; }
-
+    if (days.length === 0) return;
     slider.max = days.length - 1;
-    slider.value = days.length - 1;
-    label.textContent = days[days.length - 1];
-
-    slider.oninput = () => {
-        label.textContent = days[slider.value];
-        renderHourChart(days[slider.value]);
-    };
-    renderHourChart(days[days.length - 1]);
+    document.getElementById("hourDateLabel").textContent = days[slider.value];
+    renderHourChart(days[slider.value]);
 }
 
 function renderHourChart(dateStr) {
     if (!dateStr) return;
     const [y, m, d] = dateStr.split("/").map(Number);
     const start = new Date(y, m - 1, d, 0, 0, 0).getTime();
-
-    const fixedLabels = [];
-    for (let h = 0; h < 24; h++) { fixedLabels.push(`${String(h).padStart(2, "0")}:00`); }
-
-    const filtered = history.filter(h => h.timestamp >= start && h.timestamp < (start + 86400000));
-    const byHour = {};
-    filtered.forEach(h => { byHour[new Date(h.timestamp).getHours()] = h.seconds; });
-
-    const data = fixedLabels.map((_, i) => byHour[i] !== undefined ? byHour[i] : null);
-    renderChart("historyChart", fixedLabels, data, `${dateStr} (24h)`);
+    const labels = Array.from({length: 24}, (_, i) => `${String(i).padStart(2,"0")}:00`);
+    const filtered = history.filter(h => h.timestamp >= start && h.timestamp < start + 86400000);
+    const map = {};
+    filtered.forEach(h => { map[new Date(h.timestamp).getHours()] = h.seconds; });
+    const data = labels.map((_, i) => map[i] !== undefined ? map[i] : null);
+    renderChart("historyChart", labels, data, `${dateStr} (毎時)`);
 }
 
-/* =========================
-   DAYグラフ (1ヶ月固定)
-========================= */
+// --- DAY (1ヶ月分) ---
 function initDaySliders() {
     const months = [...new Set(history.map(h => {
         const d = new Date(h.timestamp);
         return `${d.getFullYear()}/${d.getMonth()+1}`;
     }))];
-
     const slider = document.getElementById("dayMonthSlider");
-    const label = document.getElementById("dayMonthLabel");
-
-    if (months.length === 0) { label.textContent = "-"; return; }
-
+    if (months.length === 0) return;
     slider.max = months.length - 1;
-    slider.value = months.length - 1;
-    label.textContent = months[months.length - 1];
-
-    slider.oninput = () => {
-        label.textContent = months[slider.value];
-        renderDayChart(months[slider.value]);
-    };
-    renderDayChart(months[months.length - 1]);
+    document.getElementById("dayMonthLabel").textContent = months[slider.value];
+    renderDayChart(months[slider.value]);
 }
 
 function renderDayChart(monthStr) {
     if (!monthStr) return;
     const [y, m] = monthStr.split("/").map(Number);
     const lastDay = new Date(y, m, 0).getDate();
-
-    const fixedLabels = [];
-    for (let i = 1; i <= lastDay; i++) { fixedLabels.push(`${i}日`); }
-
+    const labels = Array.from({length: lastDay}, (_, i) => `${i + 1}日`);
     const start = new Date(y, m - 1, 1).getTime();
     const end = new Date(y, m, 1).getTime();
-
     const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
-    const byDay = {};
-    filtered.forEach(h => { byDay[new Date(h.timestamp).getDate()] = h.seconds; });
-
-    const data = fixedLabels.map((_, i) => byDay[i + 1] !== undefined ? byDay[i + 1] : null);
-    renderChart("dayChart", fixedLabels, data, `${monthStr} (日次)`);
+    const map = {};
+    filtered.forEach(h => { map[new Date(h.timestamp).getDate()] = h.seconds; });
+    const data = labels.map((_, i) => map[i + 1] !== undefined ? map[i + 1] : null);
+    renderChart("dayChart", labels, data, `${monthStr} (日別)`);
 }
 
-/* =========================
-   WEEKグラフ (月曜始まり固定)
-========================= */
+// --- WEEK (週次) ---
 function initWeekSliders() {
     const months = [...new Set(history.map(h => {
         const d = new Date(h.timestamp);
         return `${d.getFullYear()}/${d.getMonth()+1}`;
     }))];
-
     const slider = document.getElementById("weekMonthSlider");
-    const label = document.getElementById("weekMonthLabel");
-
-    if (months.length === 0) { label.textContent = "-"; return; }
-
+    if (months.length === 0) return;
     slider.max = months.length - 1;
-    slider.value = months.length - 1;
-    label.textContent = months[months.length - 1];
-
-    slider.oninput = () => {
-        label.textContent = months[slider.value];
-        renderWeekChart(months[slider.value]);
-    };
-    renderWeekChart(months[months.length - 1]);
+    document.getElementById("weekMonthLabel").textContent = months[slider.value];
+    renderWeekChart(months[slider.value]);
 }
 
 function renderWeekChart(monthStr) {
     if (!monthStr) return;
     const [y, m] = monthStr.split("/").map(Number);
-    const fixedLabels = [];
+    const labels = [];
     let d = new Date(y, m - 1, 1);
-    while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
+    while (d.getDay() !== 1) d.setDate(d.getDate() + 1); // 最初の月曜へ
     while (d.getMonth() === m - 1) {
-        fixedLabels.push(`${d.getMonth() + 1}/${d.getDate()}(週)`);
+        labels.push(`${d.getMonth() + 1}/${d.getDate()}(週)`);
         d.setDate(d.getDate() + 7);
     }
-
-    const start = new Date(y, m - 1, 1).getTime();
-    const end = new Date(y, m, 1).getTime();
-    const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
-
-    const byWeek = {};
+    const filtered = history.filter(h => h.timestamp >= new Date(y, m - 1, 1).getTime() && h.timestamp < new Date(y, m, 1).getTime());
+    const map = {};
     filtered.forEach(h => {
         const dt = new Date(h.timestamp);
         const diff = dt.getDate() - dt.getDay() + (dt.getDay() === 0 ? -6 : 1);
         const mon = new Date(y, m - 1, diff);
-        const key = `${mon.getMonth() + 1}/${mon.getDate()}(週)`;
-        byWeek[key] = h.seconds;
+        map[`${mon.getMonth() + 1}/${mon.getDate()}(週)`] = h.seconds;
     });
-
-    const data = fixedLabels.map(label => byWeek[label] !== undefined ? byWeek[label] : null);
-    renderChart("weekChart", fixedLabels, data, `${monthStr} (週次)`);
+    const data = labels.map(l => map[l] !== undefined ? map[l] : null);
+    renderChart("weekChart", labels, data, `${monthStr} (週別)`);
 }
 
 /* =========================
-   タブ・ボタン制御
+   イベント・タブ制御
 ========================= */
 window.showSubTab = function(type) {
     ["Min", "Hour", "Day", "Week"].forEach(t => document.getElementById("sub" + t).style.display = "none");
@@ -327,6 +259,12 @@ window.showSubTab = function(type) {
     if (type === "day") initDaySliders();
     if (type === "week") initWeekSliders();
 };
+
+document.getElementById("dateSlider").oninput = initMinSliders;
+document.getElementById("hourSlider").oninput = initMinSliders;
+document.getElementById("hourDateSlider").oninput = initHourSliders;
+document.getElementById("dayMonthSlider").oninput = initDaySliders;
+document.getElementById("weekMonthSlider").oninput = initWeekSliders;
 
 document.getElementById("timerTab").onclick = () => {
     timerPage.style.display = "block"; graphPage.style.display = "none";
@@ -342,7 +280,7 @@ document.getElementById("graphTab").onclick = () => {
 };
 
 /* =========================
-   タイマー操作
+   タイマーボタン
 ========================= */
 document.getElementById("upBtn").onclick = () => { mode = "up"; saveData(); startLoop(); };
 document.getElementById("downBtn").onclick = () => { mode = "down"; saveData(); startLoop(); };
