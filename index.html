@@ -13,7 +13,6 @@
         <button id="graphTab" class="tab">GRAPH</button>
     </div>
 
-    <!-- タイマーページ -->
     <div id="timerPage">
         <div id="timer">00:00:00</div>
         <div class="buttons">
@@ -24,7 +23,6 @@
         </div>
     </div>
 
-    <!-- グラフページ -->
     <div id="graphPage" style="display:none;">
         <div class="subTabs">
             <button class="subTab active" onclick="showSubTab('min')">MIN</button>
@@ -33,6 +31,7 @@
             <button class="subTab" onclick="showSubTab('week')">WEEK</button>
         </div>
 
+        <!-- MIN -->
         <div id="subMin">
             <div class="minControls">
                 <div class="sliderRow">
@@ -46,28 +45,62 @@
                     <span id="hourLabel">0時</span>
                 </div>
             </div>
-            <div class="chartContainer" style="height:300px; position:relative;">
+            <div class="chartContainer">
                 <canvas id="minChart"></canvas>
             </div>
         </div>
 
+        <!-- HOUR -->
         <div id="subHour" style="display:none;">
-            <div class="chartContainer" style="height:300px; position:relative;">
+            <div class="minControls">
+                <div class="sliderRow">
+                    <label>年月日</label>
+                    <input type="range" id="hourDateSlider" min="0" max="0" value="0">
+                    <span id="hourDateLabel">-</span>
+                </div>
+            </div>
+            <div class="chartContainer">
                 <canvas id="historyChart"></canvas>
             </div>
         </div>
-        
-        <div id="subDay" style="display:none;"><div class="chartContainer" style="height:300px; position:relative;"><canvas id="dayChart"></canvas></div></div>
-        <div id="subWeek" style="display:none;"><div class="chartContainer" style="height:300px; position:relative;"><canvas id="weekChart"></canvas></div></div>
+
+        <!-- DAY -->
+        <div id="subDay" style="display:none;">
+            <div class="minControls">
+                <div class="sliderRow">
+                    <label>年月</label>
+                    <input type="range" id="dayMonthSlider" min="0" max="0" value="0">
+                    <span id="dayMonthLabel">-</span>
+                </div>
+            </div>
+            <div class="chartContainer">
+                <canvas id="dayChart"></canvas>
+            </div>
+        </div>
+
+        <!-- WEEK -->
+        <div id="subWeek" style="display:none;">
+            <div class="minControls">
+                <div class="sliderRow">
+                    <label>年月</label>
+                    <input type="range" id="weekMonthSlider" min="0" max="0" value="0">
+                    <span id="weekMonthLabel">-</span>
+                </div>
+            </div>
+            <div class="chartContainer">
+                <canvas id="weekChart"></canvas>
+            </div>
+        </div>
     </div>
 
-    <!-- 外部ライブラリ (ブロック対策としてumd版や別CDNを検討) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+
+    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
     <script>
-        // Firebase初期化 (Tracking Prevention対策)
         const firebaseConfig = {
             apiKey: "AIzaSyBOxVHqeHmdL3KVvUDFCGh6hGAd8LbEL2w",
             authDomain: "timebank-1c2f8.firebaseapp.com",
@@ -77,15 +110,10 @@
             messagingSenderId: "879959904736",
             appId: "1:879959904736:web:bee79380194a6b3ba1db85"
         };
-        
-        try {
-            firebase.initializeApp(firebaseConfig);
-            // ストレージへのアクセスがブロックされても通信を優先する
-            firebase.database().goOnline();
-        } catch (e) {
-            console.error("Firebase init error:", e);
-        }
+        firebase.initializeApp(firebaseConfig);
     </script>
+
     <script src="script.js"></script>
+
 </body>
 </html>
