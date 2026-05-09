@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Time Bank Pro</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Chart.js & Plugins -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
-    <!-- Firebase (App, Database, Analytics) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
@@ -40,61 +36,58 @@
             <button class="subTab" onclick="showSubTab('week')">WEEK</button>
         </div>
 
-        <!-- 縦軸調整エリア -->
-        <div class="axis-controls">
-            <label>縦軸最大値:</label>
-            <input type="number" id="yMaxInput" placeholder="自動">
-            <button id="applyYScaleBtn" onclick="updateAllChartsScale()">適用</button>
-        </div>
+        <div class="graph-main-layout">
+            <!-- 縦スライダー -->
+            <div class="y-axis-container">
+                <span class="y-label">MAX</span>
+                <input type="range" id="yMaxSlider" min="60" max="86400" step="60">
+                <span id="yMaxDisplay">AUTO</span>
+            </div>
 
-        <!-- 各グラフ表示エリア -->
-        <div id="subMin" class="subTabContent">
-            <div class="minControls">
-                <div class="sliderRow">
-                    <label>日付</label>
-                    <input type="range" id="dateSlider" value="0">
-                    <span id="dateLabel">-</span>
+            <div class="charts-wrapper">
+                <!-- MIN -->
+                <div id="subMin" class="subTabContent">
+                    <div class="minControls">
+                        <div class="sliderRow">
+                            <label>日付</label><input type="range" id="dateSlider" value="0"><span id="dateLabel">-</span>
+                        </div>
+                        <div class="sliderRow">
+                            <label>時間</label><input type="range" id="hourSlider" min="0" max="23" value="0"><span id="hourLabel">0時</span>
+                        </div>
+                    </div>
+                    <div class="chartContainer"><canvas id="minChart"></canvas></div>
                 </div>
-                <div class="sliderRow">
-                    <label>時間</label>
-                    <input type="range" id="hourSlider" min="0" max="23" value="0">
-                    <span id="hourLabel">0時</span>
+
+                <!-- HOUR -->
+                <div id="subHour" class="subTabContent" style="display:none;">
+                    <div class="minControls">
+                        <div class="sliderRow">
+                            <label>日付</label><input type="range" id="hourDateSlider" value="0"><span id="hourDateLabel">-</span>
+                        </div>
+                    </div>
+                    <div class="chartContainer"><canvas id="historyChart"></canvas></div>
+                </div>
+
+                <!-- DAY -->
+                <div id="subDay" class="subTabContent" style="display:none;">
+                    <div class="minControls">
+                        <div class="sliderRow">
+                            <label>月別</label><input type="range" id="dayMonthSlider" value="0"><span id="dayMonthLabel">-</span>
+                        </div>
+                    </div>
+                    <div class="chartContainer"><canvas id="dayChart"></canvas></div>
+                </div>
+
+                <!-- WEEK -->
+                <div id="subWeek" class="subTabContent" style="display:none;">
+                    <div class="minControls">
+                        <div class="sliderRow">
+                            <label>月別</label><input type="range" id="weekMonthSlider" value="0"><span id="weekMonthLabel">-</span>
+                        </div>
+                    </div>
+                    <div class="chartContainer"><canvas id="weekChart"></canvas></div>
                 </div>
             </div>
-            <div class="chartContainer"><canvas id="minChart"></canvas></div>
-        </div>
-
-        <div id="subHour" class="subTabContent" style="display:none;">
-            <div class="minControls">
-                <div class="sliderRow">
-                    <label>日付</label>
-                    <input type="range" id="hourDateSlider" value="0">
-                    <span id="hourDateLabel">-</span>
-                </div>
-            </div>
-            <div class="chartContainer"><canvas id="historyChart"></canvas></div>
-        </div>
-
-        <div id="subDay" class="subTabContent" style="display:none;">
-            <div class="minControls">
-                <div class="sliderRow">
-                    <label>月別</label>
-                    <input type="range" id="dayMonthSlider" value="0">
-                    <span id="dayMonthLabel">-</span>
-                </div>
-            </div>
-            <div class="chartContainer"><canvas id="dayChart"></canvas></div>
-        </div>
-
-        <div id="subWeek" class="subTabContent" style="display:none;">
-            <div class="minControls">
-                <div class="sliderRow">
-                    <label>月別</label>
-                    <input type="range" id="weekMonthSlider" value="0">
-                    <span id="weekMonthLabel">-</span>
-                </div>
-            </div>
-            <div class="chartContainer"><canvas id="weekChart"></canvas></div>
         </div>
     </div>
 
