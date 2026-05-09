@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Time Bank Pro</title>
+    <title>Time Bank Pro - Storage Optimized</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -19,8 +19,7 @@
 
     <!-- タイマーページ -->
     <div id="timerPage">
-        <!-- クリックで表示形式を切り替え -->
-        <div id="timer" title="クリックで表示切替">00:00:00</div>
+        <div id="timer">00:00:00</div>
         <div class="buttons">
             <button id="upBtn">UP</button>
             <button id="downBtn">DOWN</button>
@@ -52,38 +51,24 @@
             </div>
 
             <div class="charts-wrapper">
-                <div id="subMin" class="subTabContent">
-                    <div class="minControls">
-                        <div class="sliderRow"><label>日付</label><input type="range" id="dateSlider"><span id="dateLabel">-</span></div>
-                        <div class="sliderRow"><label>時間</label><input type="range" id="hourSlider" min="0" max="23"><span id="hourLabel">0時</span></div>
-                    </div>
-                    <div class="chartContainer"><canvas id="minChart"></canvas></div>
-                </div>
+                <div id="subMin" class="subTabContent"><div class="minControls">
+                    <div class="sliderRow"><label>日付</label><input type="range" id="dateSlider"><span id="dateLabel">-</span></div>
+                    <div class="sliderRow"><label>時間</label><input type="range" id="hourSlider" min="0" max="23"><span id="hourLabel">0時</span></div>
+                </div><div class="chartContainer"><canvas id="minChart"></canvas></div></div>
 
-                <div id="subHour" class="subTabContent" style="display:none;">
-                    <div class="minControls">
-                        <div class="sliderRow"><label>日付</label><input type="range" id="hourDateSlider"><span id="hourDateLabel">-</span></div>
-                    </div>
-                    <div class="chartContainer"><canvas id="historyChart"></canvas></div>
-                </div>
+                <div id="subHour" class="subTabContent" style="display:none;"><div class="minControls">
+                    <div class="sliderRow"><label>日付</label><input type="range" id="hourDateSlider"><span id="hourDateLabel">-</span></div>
+                </div><div class="chartContainer"><canvas id="historyChart"></canvas></div></div>
 
-                <div id="subDay" class="subTabContent" style="display:none;">
-                    <div class="minControls">
-                        <div class="sliderRow"><label>選択月</label><input type="range" id="dayMonthSlider"><span id="dayMonthLabel">-</span></div>
-                    </div>
-                    <div class="chartContainer"><canvas id="dayChart"></canvas></div>
-                </div>
+                <div id="subDay" class="subTabContent" style="display:none;"><div class="minControls">
+                    <div class="sliderRow"><label>選択月</label><input type="range" id="dayMonthSlider"><span id="dayMonthLabel">-</span></div>
+                </div><div class="chartContainer"><canvas id="dayChart"></canvas></div></div>
 
-                <div id="subMonth" class="subTabContent" style="display:none;">
-                    <div class="minControls">
-                        <div class="sliderRow"><label>選択年</label><input type="range" id="monthYearSlider"><span id="monthYearLabel">-</span></div>
-                    </div>
-                    <div class="chartContainer"><canvas id="monthChart"></canvas></div>
-                </div>
+                <div id="subMonth" class="subTabContent" style="display:none;"><div class="minControls">
+                    <div class="sliderRow"><label>選択年</label><input type="range" id="monthYearSlider"><span id="monthYearLabel">-</span></div>
+                </div><div class="chartContainer"><canvas id="monthChart"></canvas></div></div>
 
-                <div id="subYear" class="subTabContent" style="display:none;">
-                    <div class="chartContainer"><canvas id="yearChart"></canvas></div>
-                </div>
+                <div id="subYear" class="subTabContent" style="display:none;"><div class="chartContainer"><canvas id="yearChart"></canvas></div></div>
             </div>
         </div>
     </div>
