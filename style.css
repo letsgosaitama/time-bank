@@ -4,7 +4,16 @@ body { background: #111; color: white; display: flex; flex-direction: column; al
 .tab { font-size: 20px; padding: 12px 24px; background: #222; color: #888; border: 1px solid #444; cursor: pointer; border-radius: 4px; }
 .tab.active { color: white; border-color: white; background: #333; }
 
-#timer { font-size: 80px; margin-bottom: 40px; font-variant-numeric: tabular-nums; }
+#timer { 
+    font-size: 80px; 
+    margin-bottom: 40px; 
+    font-variant-numeric: tabular-nums; 
+    cursor: pointer; 
+    user-select: none;
+    transition: opacity 0.2s;
+}
+#timer:active { opacity: 0.6; }
+
 .buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 button { font-size: 18px; padding: 12px 20px; background: #222; color: white; border: 1px solid #555; cursor: pointer; border-radius: 4px; }
 
@@ -40,3 +49,7 @@ button { font-size: 18px; padding: 12px 20px; background: #222; color: white; bo
 .sliderRow { display: flex; align-items: center; gap: 10px; font-size: 11px; }
 .sliderRow input { flex: 1; }
 .sliderRow span { width: 90px; text-align: right; color: #007aff; font-weight: bold; }
+
+@media (max-width: 480px) {
+    #timer { font-size: 60px; }
+}
