@@ -2,36 +2,39 @@ body { background: #111; color: white; display: flex; flex-direction: column; al
 
 /* タブ */
 .tabs { display: flex; gap: 10px; margin-top: 20px; margin-bottom: 30px; }
-.tab { font-size: 20px; padding: 12px 24px; background: #222; color: #888; border: 1px solid #444; cursor: pointer; }
-.tab.active { color: white; border-color: white; }
+.tab { font-size: 20px; padding: 12px 24px; background: #222; color: #888; border: 1px solid #444; cursor: pointer; border-radius: 4px; }
+.tab.active { color: white; border-color: white; background: #333; }
 
 /* タイマー */
-#timer { font-size: 80px; margin-bottom: 40px; }
+#timer { font-size: 80px; margin-bottom: 40px; font-variant-numeric: tabular-nums; }
 .buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-button { font-size: 20px; padding: 15px 20px; background: #222; color: white; border: 1px solid #555; cursor: pointer; }
+button { font-size: 18px; padding: 12px 20px; background: #222; color: white; border: 1px solid #555; cursor: pointer; border-radius: 4px; }
+button:active { background: #444; }
 
-/* グラフレイアウト */
-.subTabs { display: flex; gap: 10px; margin-bottom: 20px; }
-.subTab { font-size: 14px; padding: 8px 15px; background: #222; color: #888; border: 1px solid #444; cursor: pointer; }
-.subTab.active { color: white; border-color: white; }
+/* グラフ表示 */
+.subTabs { display: flex; gap: 5px; margin-bottom: 15px; }
+.subTab { font-size: 12px; padding: 6px 12px; background: #222; color: #888; border: 1px solid #444; cursor: pointer; }
+.subTab.active { color: white; border-color: #007aff; }
 
-.graph-main-layout { display: flex; flex-direction: row; gap: 10px; width: 95vw; align-items: flex-start; }
+.graph-main-layout { display: flex; flex-direction: row; gap: 10px; width: 95vw; align-items: stretch; }
 
-/* 縦スライダー設定 */
+/* 縦スライダー (標準準拠版) */
 .y-axis-container {
     display: flex; flex-direction: column; align-items: center;
-    height: 60vh; width: 50px; background: #181818; border: 1px solid #444; padding: 10px 0;
+    width: 45px; background: #181818; border: 1px solid #333; padding: 10px 0; border-radius: 4px;
 }
 #yMaxSlider {
-    appearance: slider-vertical; /* 縦にする */
-    width: 20px; height: 100%; cursor: pointer; accent-color: #007aff;
+    writing-mode: vertical-lr; /* 縦書きモード */
+    direction: rtl;            /* 下から上に動くように調整 */
+    width: 30px; height: 100%; cursor: pointer; accent-color: #007aff;
+    margin: 5px 0;
 }
-#yMaxDisplay { font-size: 10px; color: #888; margin-top: 5px; }
+#yMaxDisplay { font-size: 10px; color: #aaa; margin-top: 5px; }
 
-.charts-wrapper { flex: 1; display: flex; flex-direction: column; }
-.chartContainer { width: 100%; height: 60vh; background: #181818; border: 1px solid #444; }
+.charts-wrapper { flex: 1; min-width: 0; }
+.chartContainer { width: 100%; height: 55vh; background: #181818; border: 1px solid #333; border-radius: 4px; }
 
-.minControls { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.minControls { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; background: #181818; padding: 10px; border-radius: 4px; }
 .sliderRow { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 .sliderRow input { flex: 1; }
-.sliderRow span { width: 80px; text-align: right; }
+.sliderRow span { width: 90px; text-align: right; color: #007aff; }
