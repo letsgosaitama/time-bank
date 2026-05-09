@@ -138,12 +138,26 @@ function initMinSliders() {
         const d = new Date(h.timestamp);
         return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
     }))];
+
     const dSlider = document.getElementById("dateSlider");
+    const dLabel = document.getElementById("dateLabel");
     const hSlider = document.getElementById("hourSlider");
+    const hLabel = document.getElementById("hourLabel");
+
     if (days.length === 0) return;
+
+    // --- 日付スライダーの初期化 ---
     dSlider.max = days.length - 1;
-    document.getElementById("dateLabel").textContent = days[dSlider.value];
-    renderMinChart(days[dSlider.value], Number(hSlider.value));
+    dSlider.value = days.length - 1;
+    dLabel.textContent = days[days.length - 1];
+
+    // --- 時間スライダーの初期化 (ここが修正ポイント) ---
+    const currentHour = new Date().getHours();
+    hSlider.value = currentHour; // つまみの位置を今の時間に
+    hLabel.textContent = `${currentHour}時`; // テキストを今の時間に
+
+    // 初回描画
+    renderMinChart(days[dSlider.value], currentHour);
 }
 
 function renderMinChart(dateStr, hour) {
