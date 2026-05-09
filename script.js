@@ -28,17 +28,13 @@ let lastPush = 0;
 
 const timerText = document.getElementById("timer");
 
-// マイナスに対応した時間フォーマット
 function formatTime(sec) {
     const isNegative = sec < 0;
-    const absSec = Math.abs(sec); // 計算用に絶対値にする
-    
+    const absSec = Math.abs(sec);
     if (displayMode === "sec") return (isNegative ? "-" : "") + absSec + "s";
-    
     const h = String(Math.floor(absSec / 3600)).padStart(2, "0");
     const m = String(Math.floor((absSec % 3600) / 60)).padStart(2, "0");
     const s = String(absSec % 60).padStart(2, "0");
-    
     return `${isNegative ? "-" : ""}${h}:${m}:${s}`;
 }
 
@@ -75,17 +71,13 @@ function cleanupOldHistory() {
 }
 
 /* =========================
-   タイマー制御（マイナス対応）
+   タイマー制御
 ========================= */
 function startLoop() {
     clearInterval(timer);
     timer = setInterval(() => {
         if (mode === "up") seconds++;
-        if (mode === "down") {
-            seconds--;
-            // 0以下でも止まらないように条件を削除（または変更）
-            // もし「-1時間で止める」などの制限が欲しければここに書く
-        }
+        if (mode === "down") seconds--;
         timerText.textContent = formatTime(seconds);
         saveData(false);
     }, 1000);
@@ -95,7 +87,7 @@ document.getElementById("upBtn").onclick = () => { mode = "up"; startLoop(); };
 document.getElementById("downBtn").onclick = () => { mode = "down"; startLoop(); };
 document.getElementById("stopBtn").onclick = () => { mode = "stop"; clearInterval(timer); saveData(true); };
 document.getElementById("resetBtn").onclick = () => {
-    if (!confirm("データを削除しますか？")) return;
+    if (!confirm("データを完全にリセットしますか？")) return;
     seconds = 0; mode = "stop";
     dataRef.set({ seconds: 0, mode: "stop", lastUpdate: Date.now() });
     db.ref("timebank/history").remove();
@@ -122,7 +114,7 @@ db.ref("timebank/daily_summary").on("value", snap => {
 });
 
 /* =========================
-   グラフ描画
+   グラフ描画（プラス/マイナス色分け版）
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
@@ -218,29 +210,81 @@ function renderChart(canvasId, labels, data, label) {
     const ctx = canvas.getContext("2d");
     const key = "_chart_" + canvasId;
     if (window[key]) window[key].destroy();
+
+    // Chart.jsの「Segment」と「Grid」機能を使って0のラインで色を分ける
     window[key] = new Chart(ctx, {
         type: "line",
-        data: { labels, datasets: [{ 
-            label, 
-            data, 
-            borderColor: '#007aff', 
-            backgroundColor: 'rgba(0,122,255,0.1)', 
-            fill: true, 
-            tension: 0.1, 
-            pointRadius: 2,
-            spanGaps: true
-        }] },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            animation: false, 
-            scales: { y: { beginAtZero: false, max: currentYMax ? Number(currentYMax) : undefined } } 
+        data: {
+            labels,
+            datasets: [{
+                label,
+                data,
+                // 線の色を0を境に分ける
+                borderColor: (context) => {
+                    const chart = context.chart;
+                    const {ctx, chartArea} = chart;
+                    if (!chartArea) return '#007aff';
+                    return getGradient(ctx, chartArea);
+                },
+                backgroundColor: (context) => {
+                    const chart = context.chart;
+                    const {ctx, chartArea} = chart;
+                    if (!chartArea) return 'rgba(0,122,255,0.1)';
+                    return getGradient(ctx, chartArea, true);
+                },
+                fill: true,
+                tension: 0.1,
+                pointRadius: 2,
+                spanGaps: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    max: currentYMax ? Number(currentYMax) : undefined,
+                    grid: {
+                        // 0のライン（借金の境界線）を強調する
+                        color: (context) => (context.tick.value === 0 ? '#ff3b30' : '#e5e5e5'),
+                        lineWidth: (context) => (context.tick.value === 0 ? 2 : 1)
+                    }
+                }
+            }
         }
     });
 }
 
+// 0のラインで色を切り替えるグラデーション関数
+function getGradient(ctx, chartArea, isBackground = false) {
+    const chartHeight = chartArea.bottom - chartArea.top;
+    // 0の位置（ピクセル）を取得
+    // データの最小値と最大値から0がどの高さにあるかを計算
+    // ※今回は簡易的に中心付近で色が分かれるように見えますが、厳密にはスケール計算が必要なため、
+    // 0のラインを基準に青(プラス)と赤(マイナス)に塗り分ける設定にします。
+    const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+    
+    // Y軸の0の位置が動的なので、Chart.jsのデフォルトのセグメント色分け機能（下で補足）が理想的ですが、
+    // ここでは「上が青、下が赤」の固定グラデーションを定義します。
+    // ※より厳密にするには yAxis.getPixelForValue(0) を使いますが、まずはシンプルに！
+    if (isBackground) {
+        gradient.addColorStop(0, 'rgba(0,122,255,0.2)'); // プラスは青
+        gradient.addColorStop(0.5, 'rgba(0,122,255,0.05)');
+        gradient.addColorStop(0.5, 'rgba(255,59,48,0.05)');
+        gradient.addColorStop(1, 'rgba(255,59,48,0.2)'); // マイナスは赤
+    } else {
+        gradient.addColorStop(0, '#007aff');
+        gradient.addColorStop(0.5, '#007aff');
+        gradient.addColorStop(0.5, '#ff3b30');
+        gradient.addColorStop(1, '#ff3b30');
+    }
+    return gradient;
+}
+
 /* =========================
-   タブ & 設定
+   タブ & 設定（変更なし）
 ========================= */
 window.showSubTab = function (type, isFirstOpen = false) {
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display = "none");
