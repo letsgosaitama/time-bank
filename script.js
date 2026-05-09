@@ -191,142 +191,80 @@ function renderMinChart(dateStr, hour) {
 }
 
 /* =========================
-   HOURグラフ
+   HOURグラフ（24時間固定）
 ========================= */
-
-function initHourSliders() {
-    const days = [...new Set(history.map(h => {
-        const d = new Date(h.timestamp);
-        return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
-    }))];
-
-    const slider = document.getElementById("hourDateSlider");
-    const label = document.getElementById("hourDateLabel");
-
-    slider.max = Math.max(0, days.length - 1);
-    slider.value = days.length - 1;
-    label.textContent = days[days.length - 1] || "-";
-
-    slider.oninput = () => {
-        label.textContent = days[slider.value];
-        renderHourChart(days[slider.value]);
-    };
-
-    renderHourChart(days[days.length - 1]);
-}
-
 function renderHourChart(dateStr) {
     if (!dateStr) return;
     const [y, m, d] = dateStr.split("/").map(Number);
     const start = new Date(y, m - 1, d, 0, 0, 0).getTime();
     const end = start + 86400000;
 
+    // 0時〜23時の固定ラベル
+    const fixedLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+    
     const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
-    const grouped = {};
+    const byHour = {};
     filtered.forEach(h => {
-        const d = new Date(h.timestamp);
-        const key = `${d.getHours()}:00`;
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(h.seconds);
+        const hourKey = new Date(h.timestamp).getHours();
+        byHour[hourKey] = h.seconds; // その時間の最後のデータを保持
     });
 
-    const labels = Object.keys(grouped);
-    const data = Object.values(grouped).map(arr => arr[arr.length - 1]);
-    renderChart("historyChart", labels, data, dateStr);
+    const data = fixedLabels.map((_, i) => byHour[i] !== undefined ? byHour[i] : null);
+    renderChart("historyChart", fixedLabels, data, dateStr);
 }
 
 /* =========================
-   DAYグラフ
+   DAYグラフ（1ヶ月分固定）
 ========================= */
-
-function initDaySliders() {
-    const months = [...new Set(history.map(h => {
-        const d = new Date(h.timestamp);
-        return `${d.getFullYear()}/${d.getMonth()+1}`;
-    }))];
-
-    const slider = document.getElementById("dayMonthSlider");
-    const label = document.getElementById("dayMonthLabel");
-
-    slider.max = Math.max(0, months.length - 1);
-    slider.value = months.length - 1;
-    label.textContent = months[months.length - 1] || "-";
-
-    slider.oninput = () => {
-        label.textContent = months[slider.value];
-        renderDayChart(months[slider.value]);
-    };
-
-    renderDayChart(months[months.length - 1]);
-}
-
 function renderDayChart(monthStr) {
     if (!monthStr) return;
     const [y, m] = monthStr.split("/").map(Number);
+    const lastDay = new Date(y, m, 0).getDate(); // その月が何日まであるか
+
+    // 1日〜末日の固定ラベル
+    const fixedLabels = Array.from({ length: lastDay }, (_, i) => `${i + 1}日`);
+    
     const start = new Date(y, m - 1, 1).getTime();
     const end = new Date(y, m, 1).getTime();
 
     const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
-    const grouped = {};
+    const byDay = {};
     filtered.forEach(h => {
-        const d = new Date(h.timestamp);
-        const key = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(h.seconds);
+        const dayKey = new Date(h.timestamp).getDate();
+        byDay[dayKey] = h.seconds;
     });
 
-    const labels = Object.keys(grouped);
-    const data = Object.values(grouped).map(arr => arr[arr.length - 1]);
-    renderChart("dayChart", labels, data, monthStr);
+    const data = fixedLabels.map((_, i) => byDay[i + 1] !== undefined ? byDay[i + 1] : null);
+    renderChart("dayChart", fixedLabels, data, monthStr);
 }
 
 /* =========================
-   WEEKグラフ
+   WEEKグラフ（月曜始まり・週単位固定）
 ========================= */
-
-function initWeekSliders() {
-    const months = [...new Set(history.map(h => {
-        const d = new Date(h.timestamp);
-        return `${d.getFullYear()}/${d.getMonth()+1}`;
-    }))];
-
-    const slider = document.getElementById("weekMonthSlider");
-    const label = document.getElementById("weekMonthLabel");
-
-    slider.max = Math.max(0, months.length - 1);
-    slider.value = months.length - 1;
-    label.textContent = months[months.length - 1] || "-";
-
-    slider.oninput = () => {
-        label.textContent = months[slider.value];
-        renderWeekChart(months[slider.value]);
-    };
-
-    renderWeekChart(months[months.length - 1]);
-}
-
 function renderWeekChart(monthStr) {
     if (!monthStr) return;
     const [y, m] = monthStr.split("/").map(Number);
+    
     const start = new Date(y, m - 1, 1).getTime();
     const end = new Date(y, m, 1).getTime();
-
     const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
-    const grouped = {};
+
+    // 月内の「月曜日」のリストを抽出してラベルにする
+    const weekMap = {};
     filtered.forEach(h => {
         const d = new Date(h.timestamp);
-        const w = new Date(d);
-        w.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-        const key = `${w.getFullYear()}/${w.getMonth()+1}/${w.getDate()}`;
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(h.seconds);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // 月曜日を特定
+        const monday = new Date(d.setDate(diff));
+        const key = `${monday.getMonth() + 1}/${monday.getDate()}(週)`;
+        weekMap[key] = h.seconds;
     });
 
-    const labels = Object.keys(grouped);
-    const data = Object.values(grouped).map(arr => arr[arr.length - 1]);
-    renderChart("weekChart", labels, data, monthStr);
-}
+    const labels = Object.keys(weekMap).sort();
+    const data = labels.map(l => weekMap[l]);
 
+    renderChart("weekChart", labels, data, monthStr + " (週次)");
+}
 /* =========================
    サブタブ切り替え
 ========================= */
