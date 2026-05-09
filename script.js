@@ -1,5 +1,5 @@
 /* =========================
-   Firebase設定 (※あなたの設定に書き換えてください)
+   Firebase設定
 ========================= */
 const firebaseConfig = {
   apiKey: "AIzaSyBOxVHqeHmdL3KVvUDFCGh6hGAd8LbEL2w",
@@ -23,15 +23,27 @@ let seconds = 0;
 let mode = "stop";
 let history = [];
 let currentYMax = null;
+let displayMode = "hms"; // "hms" or "sec"
 
 const timerText = document.getElementById("timer");
 
+// 表示形式の変換関数
 function formatTime(sec) {
-    const h = String(Math.floor(sec / 3600)).padStart(2, "0");
-    const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
-    const s = String(sec % 60).padStart(2, "0");
-    return `${h}:${m}:${s}`;
+    if (displayMode === "sec") {
+        return sec + "s";
+    } else {
+        const h = String(Math.floor(sec / 3600)).padStart(2, "0");
+        const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+        const s = String(sec % 60).padStart(2, "0");
+        return `${h}:${m}:${s}`;
+    }
 }
+
+// クリックで表示モード切替
+timerText.onclick = () => {
+    displayMode = (displayMode === "hms") ? "sec" : "hms";
+    timerText.textContent = formatTime(seconds);
+};
 
 function saveData() {
     const t = Date.now();
@@ -82,7 +94,7 @@ db.ref("timebank/history").on("value", snap => {
 });
 
 /* =========================
-   共通ユーティリティ
+   共通・設定パネル
 ========================= */
 window.toggleConfig = function() {
     const panel = document.getElementById("configPanel");
@@ -125,12 +137,11 @@ function setSliderToCurrent(sliderId, list, currentVal) {
     if (!slider) return;
     slider.max = Math.max(0, list.length - 1);
     const idx = list.indexOf(currentVal);
-    if (idx !== -1) slider.value = idx;
-    else slider.value = slider.max;
+    if (idx !== -1) slider.value = idx; else slider.value = slider.max;
 }
 
 /* =========================
-   各描画ロジック
+   グラフ描画ロジック
 ========================= */
 function updateMinSliders() {
     const days = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))];
@@ -193,7 +204,7 @@ function updateYearSliders() {
 }
 
 /* =========================
-   タブ切替
+   タブ・切替
 ========================= */
 window.showSubTab = function(type, isFirstOpen = false) {
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display="none");
@@ -216,14 +227,11 @@ window.showSubTab = function(type, isFirstOpen = false) {
         else { document.getElementById("dateSlider").max = Math.max(0, days.length - 1); }
         updateMinSliders();
     } else if (type === 'hour') {
-        setSliderToCurrent("hourDateSlider", days, curDate);
-        updateHourSliders();
+        setSliderToCurrent("hourDateSlider", days, curDate); updateHourSliders();
     } else if (type === 'day') {
-        setSliderToCurrent("dayMonthSlider", months, curMonth);
-        updateDaySliders();
+        setSliderToCurrent("dayMonthSlider", months, curMonth); updateDaySliders();
     } else if (type === 'month') {
-        setSliderToCurrent("monthYearSlider", years, curYear);
-        updateMonthSliders();
+        setSliderToCurrent("monthYearSlider", years, curYear); updateMonthSliders();
     } else if (type === 'year') {
         updateYearSliders();
     }
