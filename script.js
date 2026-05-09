@@ -36,6 +36,21 @@ function updateUI() {
 }
 
 /* =========================
+   ページ切り替え（重要修正）
+========================= */
+window.showPage = function (page) {
+    if (page === "timer") {
+        timerPage.style.display = "block";
+        graphPage.style.display = "none";
+    }
+
+    if (page === "graph") {
+        timerPage.style.display = "none";
+        graphPage.style.display = "block";
+    }
+};
+
+/* =========================
    Firebase保存
 ========================= */
 function saveData() {
@@ -192,7 +207,7 @@ function initMinSliders() {
 }
 
 /* =========================
-   HOUR（24固定）
+   HOUR
 ========================= */
 function renderHourChart(dateStr) {
     if (!dateStr) return;
@@ -214,7 +229,7 @@ function renderHourChart(dateStr) {
 }
 
 /* =========================
-   DAY（30固定）
+   DAY
 ========================= */
 function renderDayChart(monthStr) {
     if (!monthStr) return;
@@ -234,17 +249,11 @@ function renderDayChart(monthStr) {
 }
 
 /* =========================
-   WEEK（30固定）
-========================= */
-function renderWeekChart(monthStr) {
-    renderDayChart(monthStr);
-}
-
-/* =========================
-   グラフ切り替え
+   グラフタブ制御（修正済み）
 ========================= */
 window.showSubTab = function(type) {
-    ["Min","Hour","Day","Week"].forEach(t => {
+
+    ["Min", "Hour", "Day", "Week"].forEach(t => {
         const el = document.getElementById("sub" + t);
         if (el) el.style.display = "none";
     });
@@ -252,6 +261,7 @@ window.showSubTab = function(type) {
     const target = document.getElementById("sub" + type.charAt(0).toUpperCase() + type.slice(1));
     if (target) target.style.display = "block";
 
+    // ★重要：minだけ初期化
     if (type === "min") initMinSliders();
 };
 
