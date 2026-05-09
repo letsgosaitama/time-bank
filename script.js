@@ -191,99 +191,89 @@ function renderMinChart(dateStr, hour) {
 }
 
 /* =========================
-   HOURグラフ（0時〜23時固定）
+   HOUR用の初期化
+========================= */
+function initHourSliders() {
+    const days = [...new Set(history.map(h => {
+        const d = new Date(h.timestamp);
+        return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+    }))];
+
+    const slider = document.getElementById("hourDateSlider");
+    const label = document.getElementById("hourDateLabel");
+
+    // データがない場合の防衛策
+    if (days.length === 0) {
+        label.textContent = "データなし";
+        slider.max = 0;
+        return; 
+    }
+
+    slider.max = days.length - 1;
+    slider.value = days.length - 1;
+    label.textContent = days[days.length - 1];
+
+    slider.oninput = () => {
+        label.textContent = days[slider.value];
+        renderHourChart(days[slider.value]);
+    };
+
+    renderHourChart(days[days.length - 1]);
+}
+
+// ※ initDaySliders, initWeekSliders も同様に days ではなく months で作成してください。
+/* =========================
+   HOURグラフ (00:00 - 23:00)
 ========================= */
 function renderHourChart(dateStr) {
-    if (!dateStr) return;
+    if (!dateStr || dateStr === "-") return;
     const [y, m, d] = dateStr.split("/").map(Number);
     const start = new Date(y, m - 1, d, 0, 0, 0).getTime();
     const end = start + 86400000;
 
-    // 1. 固定ラベル作成 (00:00 〜 23:00)
+    // 固定ラベル：00:00 〜 23:00
     const fixedLabels = [];
     for (let h = 0; h < 24; h++) {
         fixedLabels.push(`${String(h).padStart(2, "0")}:00`);
     }
 
-    // 2. データを分単位から時間単位にマッピング
     const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
     const byHour = {};
     filtered.forEach(h => {
-        const hourKey = new Date(h.timestamp).getHours();
-        byHour[hourKey] = h.seconds; // その時間内の最後のデータが残る
+        const key = new Date(h.timestamp).getHours();
+        byHour[key] = h.seconds;
     });
 
-    // 3. ラベルに合わせてデータ配列を作成
     const data = fixedLabels.map((_, i) => byHour[i] !== undefined ? byHour[i] : null);
-    renderChart("historyChart", fixedLabels, data, `${dateStr} の推移`);
+    renderChart("historyChart", fixedLabels, data, `${dateStr}`);
 }
 
 /* =========================
-   DAYグラフ（1日〜末日固定）
+   DAYグラフ (1日 - 末日)
 ========================= */
 function renderDayChart(monthStr) {
-    if (!monthStr) return;
+    if (!monthStr || monthStr === "-") return;
     const [y, m] = monthStr.split("/").map(Number);
-    const lastDay = new Date(y, m, 0).getDate(); // その月の末日を取得
+    const lastDay = new Date(y, m, 0).getDate();
 
-    // 1. 固定ラベル作成 (1日 〜 末日)
+    // 固定ラベル：1日 〜 末日
     const fixedLabels = [];
-    for (let d = 1; d <= lastDay; d++) {
-        fixedLabels.push(`${d}日`);
+    for (let i = 1; i <= lastDay; i++) {
+        fixedLabels.push(`${i}日`);
     }
 
     const start = new Date(y, m - 1, 1).getTime();
     const end = new Date(y, m, 1).getTime();
 
-    // 2. データを日単位にマッピング
     const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
     const byDay = {};
     filtered.forEach(h => {
-        const dayKey = new Date(h.timestamp).getDate();
-        byDay[dayKey] = h.seconds;
+        const key = new Date(h.timestamp).getDate();
+        byDay[key] = h.seconds;
     });
 
-    // 3. データ配列作成 (i+1が日にちに対応)
     const data = fixedLabels.map((_, i) => byDay[i + 1] !== undefined ? byDay[i + 1] : null);
-    renderChart("dayChart", fixedLabels, data, `${monthStr} の推移`);
-}
-
-/* =========================
-   WEEKグラフ（月曜始まり固定）
-========================= */
-function renderWeekChart(monthStr) {
-    if (!monthStr) return;
-    const [y, m] = monthStr.split("/").map(Number);
-    
-    // 1. その月の月曜日をすべて抽出して固定ラベルにする
-    const fixedLabels = [];
-    let d = new Date(y, m - 1, 1);
-    // 最初の月曜日まで移動
-    while (d.getDay() !== 1) { d.setDate(d.getDate() + 1); }
-    
-    while (d.getMonth() === m - 1) {
-        fixedLabels.push(`${d.getMonth() + 1}/${d.getDate()}(週)`);
-        d.setDate(d.getDate() + 7);
-    }
-
-    const start = new Date(y, m - 1, 1).getTime();
-    const end = new Date(y, m, 1).getTime();
-
-    // 2. データを週単位（月曜日の日付キー）にマッピング
-    const filtered = history.filter(h => h.timestamp >= start && h.timestamp < end);
-    const byWeek = {};
-    filtered.forEach(h => {
-        const dt = new Date(h.timestamp);
-        const day = dt.getDay();
-        const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
-        const monday = new Date(y, m - 1, diff);
-        const key = `${monday.getMonth() + 1}/${monday.getDate()}(週)`;
-        byWeek[key] = h.seconds;
-    });
-
-    // 3. データ配列作成
-    const data = fixedLabels.map(label => byWeek[label] !== undefined ? byWeek[label] : null);
-    renderChart("weekChart", fixedLabels, data, `${monthStr} の週次推移`);
+    renderChart("dayChart", fixedLabels, data, `${monthStr}`);
 }
 /* =========================
    サブタブ切り替え
