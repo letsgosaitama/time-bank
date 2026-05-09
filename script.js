@@ -22,9 +22,7 @@ const graphPage = document.getElementById("graphPage");
 /* =========================
    ユーティリティ
 ========================= */
-function now() {
-    return Date.now();
-}
+const now = () => Date.now();
 
 function formatTime(sec) {
     const h = String(Math.floor(sec / 3600)).padStart(2, "0");
@@ -34,9 +32,7 @@ function formatTime(sec) {
 }
 
 function updateUI() {
-    if (timerText) {
-        timerText.textContent = formatTime(seconds);
-    }
+    timerText.textContent = formatTime(seconds);
 }
 
 /* =========================
@@ -104,7 +100,7 @@ function startLoop() {
 }
 
 /* =========================
-   チャート描画
+   チャート
 ========================= */
 function renderChart(canvasId, labels, data, label) {
     const canvas = document.getElementById(canvasId);
@@ -134,7 +130,7 @@ function renderChart(canvasId, labels, data, label) {
 }
 
 /* =========================
-   MINグラフ
+   MIN
 ========================= */
 function renderMinChart(dateStr, hour) {
     if (!dateStr) return;
@@ -159,7 +155,7 @@ function renderMinChart(dateStr, hour) {
 }
 
 /* =========================
-   MINスライダー
+   MIN UI
 ========================= */
 function initMinSliders() {
     const days = [...new Set(history.map(h => {
@@ -179,7 +175,7 @@ function initMinSliders() {
 
     hourSlider.value = new Date().getHours();
 
-    dateLabel.textContent = days[days.length - 1];
+    dateLabel.textContent = days.at(-1);
     hourLabel.textContent = hourSlider.value + "時";
 
     dateSlider.oninput = () => {
@@ -192,7 +188,7 @@ function initMinSliders() {
         renderMinChart(days[dateSlider.value], +hourSlider.value);
     };
 
-    renderMinChart(days[days.length - 1], +hourSlider.value);
+    renderMinChart(days.at(-1), +hourSlider.value);
 }
 
 /* =========================
@@ -210,8 +206,8 @@ function renderHourChart(dateStr) {
 
     history.forEach(h => {
         if (h.timestamp < start || h.timestamp >= end) return;
-        const hHour = new Date(h.timestamp).getHours();
-        data[hHour] = h.seconds;
+        const hour = new Date(h.timestamp).getHours();
+        data[hour] = h.seconds;
     });
 
     renderChart("historyChart", labels, data, dateStr);
@@ -245,6 +241,21 @@ function renderWeekChart(monthStr) {
 }
 
 /* =========================
+   グラフ切り替え
+========================= */
+window.showSubTab = function(type) {
+    ["Min","Hour","Day","Week"].forEach(t => {
+        const el = document.getElementById("sub" + t);
+        if (el) el.style.display = "none";
+    });
+
+    const target = document.getElementById("sub" + type.charAt(0).toUpperCase() + type.slice(1));
+    if (target) target.style.display = "block";
+
+    if (type === "min") initMinSliders();
+};
+
+/* =========================
    Firebase同期
 ========================= */
 dataRef.on("value", snap => {
@@ -264,43 +275,35 @@ dataRef.on("value", snap => {
 
 db.ref("timebank/history").on("value", snap => {
     const data = snap.val();
-    history = data ? Object.values(data).sort((a, b) => a.timestamp - b.timestamp) : [];
+    history = data
+        ? Object.values(data).sort((a, b) => a.timestamp - b.timestamp)
+        : [];
 });
 
 /* =========================
-   ★ボタン（ここが唯一の正解）
+   ボタン
 ========================= */
-function bindButtons() {
+window.addEventListener("DOMContentLoaded", () => {
 
-    const up = document.getElementById("upBtn");
-    const down = document.getElementById("downBtn");
-    const stop = document.getElementById("stopBtn");
-    const reset = document.getElementById("resetBtn");
-
-    if (!up || !down || !stop || !reset) {
-        console.warn("ボタン取得できてない（HTML確認）");
-        return;
-    }
-
-    up.onclick = () => {
+    document.getElementById("upBtn").onclick = () => {
         mode = "up";
         saveData();
         startLoop();
     };
 
-    down.onclick = () => {
+    document.getElementById("downBtn").onclick = () => {
         mode = "down";
         saveData();
         startLoop();
     };
 
-    stop.onclick = () => {
+    document.getElementById("stopBtn").onclick = () => {
         mode = "stop";
         clearInterval(timer);
         saveData();
     };
 
-    reset.onclick = () => {
+    document.getElementById("resetBtn").onclick = () => {
         seconds = 0;
         mode = "stop";
         history = [];
@@ -315,8 +318,4 @@ function bindButtons() {
         db.ref("timebank/history").remove();
         updateUI();
     };
-}
-
-/* ★必ず最後 */
-bindButtons();
-updateUI();
+});
