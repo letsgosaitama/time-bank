@@ -86,8 +86,13 @@ db.ref("timebank/history").on("value", snap => {
 });
 
 /* =========================
-   縦スライダー機能
+   設定パネル・スライダー機能
 ========================= */
+window.toggleConfig = function() {
+    const panel = document.getElementById("configPanel");
+    panel.style.display = (panel.style.display === "none") ? "flex" : "none";
+};
+
 document.getElementById("yMaxSlider").oninput = function() {
     const val = parseInt(this.value);
     if (val >= 85000) {
@@ -101,10 +106,8 @@ document.getElementById("yMaxSlider").oninput = function() {
 };
 
 function refreshChart() {
-    // アクティブなタブを安全に取得
     const activeTab = document.querySelector(".subTab.active");
-    if (!activeTab) return; // タブが未選択なら何もしない(エラー防止)
-
+    if (!activeTab) return;
     const activeName = activeTab.textContent.toLowerCase();
     if (activeName === "min") updateMinSliders();
     else if (activeName === "hour") updateHourSliders();
@@ -138,7 +141,6 @@ function updateMinSliders() {
     const hour = parseInt(document.getElementById("hourSlider").value);
     document.getElementById("dateLabel").textContent = selectedDate || "-";
     document.getElementById("hourLabel").textContent = hour + "時";
-    
     if (!selectedDate) return;
     const start = new Date(selectedDate).setHours(hour,0,0,0);
     const labels = Array.from({length:60}, (_,i) => `${hour}:${String(i).padStart(2,'0')}`);
@@ -193,13 +195,13 @@ function updateWeekSliders() {
 }
 
 /* =========================
-   タブ・切替
+   タブ切替
 ========================= */
 window.showSubTab = function(type) {
+    document.getElementById("configPanel").style.display = "none"; // 切り替え時にパネルを閉じる
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display="none");
     const target = document.getElementById("sub"+type.charAt(0).toUpperCase()+type.slice(1));
     if(target) target.style.display="block";
-
     document.querySelectorAll(".subTab").forEach(b => b.classList.remove("active"));
     if(event && event.currentTarget) event.currentTarget.classList.add("active");
 
