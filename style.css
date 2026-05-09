@@ -1,29 +1,24 @@
 body { background: #111; color: white; display: flex; flex-direction: column; align-items: center; margin: 0; font-family: sans-serif; min-height: 100vh; }
 
-/* メインタブ */
 .tabs { display: flex; gap: 10px; margin-top: 20px; margin-bottom: 30px; }
 .tab { font-size: 20px; padding: 12px 24px; background: #222; color: #888; border: 1px solid #444; cursor: pointer; border-radius: 4px; }
 .tab.active { color: white; border-color: white; background: #333; }
 
-/* タイマー */
 #timer { font-size: 80px; margin-bottom: 40px; font-variant-numeric: tabular-nums; }
 .buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 button { font-size: 18px; padding: 12px 20px; background: #222; color: white; border: 1px solid #555; cursor: pointer; border-radius: 4px; }
 
-/* グラフエリア */
 .subTabs { display: flex; gap: 5px; margin-bottom: 15px; }
 .subTab { font-size: 12px; padding: 6px 12px; background: #222; color: #888; border: 1px solid #444; cursor: pointer; }
-.subTab.active { color: white; border-color: #007aff; }
+.subTab.active { color: white; border-color: #007aff; background: #1a1a1a; }
 
 .graph-main-layout { position: relative; width: 95vw; }
 
-/* 設定ボタン（右上に配置） */
 #graphConfigBtn {
     position: absolute; right: 0; top: -45px;
     font-size: 12px; padding: 5px 10px; background: #222; border: 1px solid #444;
 }
 
-/* スライダー設定パネル (オーバーレイ) */
 .config-panel {
     position: absolute; right: 0; top: 0; z-index: 100;
     background: rgba(30, 30, 30, 0.95); border: 1px solid #007aff;
@@ -31,13 +26,13 @@ button { font-size: 18px; padding: 12px 20px; background: #222; color: white; bo
     display: flex; flex-direction: column; align-items: center; gap: 10px;
 }
 
-.y-axis-container { display: flex; flex-direction: column; align-items: center; height: 200px; width: 50px; }
+.y-axis-container { display: flex; flex-direction: column; align-items: center; height: 180px; width: 50px; }
 #yMaxSlider {
     writing-mode: vertical-lr; direction: rtl;
     width: 25px; height: 100%; cursor: pointer; accent-color: #007aff;
 }
 .y-label, #yMaxDisplay { font-size: 10px; color: #aaa; }
-.close-panel-btn { font-size: 10px; padding: 4px 8px; background: #333; border: none; }
+.close-panel-btn { font-size: 10px; padding: 4px 8px; background: #444; border: none; color: white; border-radius: 3px; }
 
 .charts-wrapper { width: 100%; }
 .chartContainer { width: 100%; height: 55vh; background: #181818; border: 1px solid #333; border-radius: 4px; }
