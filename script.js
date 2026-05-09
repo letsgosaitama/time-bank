@@ -257,25 +257,68 @@ function renderHourChart(dateStr) {
     const start = new Date(y, m - 1, d, 0, 0, 0).getTime();
     const end = start + 86400000;
 
-    const grouped = {};
+    // ★24時間固定ラベル
+    const labels = Array.from({ length: 24 }, (_, h) =>
+        `${String(h).padStart(2, "0")}:00`
+    );
+
+    const data = Array(24).fill(null);
 
     history.forEach(h => {
         if (h.timestamp < start || h.timestamp >= end) return;
 
-        const d = new Date(h.timestamp);
-        const key = `${d.getHours()}:00`;
-
-        grouped[key] = h.seconds;
+        const hour = new Date(h.timestamp).getHours();
+        data[hour] = h.seconds;
     });
 
-    renderChart(
-        "historyChart",
-        Object.keys(grouped),
-        Object.values(grouped),
-        dateStr
-    );
+    renderChart("historyChart", labels, data, dateStr);
 }
 
+function renderDayChart(monthStr) {
+    if (!monthStr) return;
+
+    const [y, m] = monthStr.split("/").map(Number);
+
+    const labels = Array.from({ length: 30 }, (_, i) =>
+        `${String(i + 1).padStart(2, "0")}日`
+    );
+
+    const data = Array(30).fill(null);
+
+    history.forEach(h => {
+        const d = new Date(h.timestamp);
+
+        if (d.getFullYear() !== y || d.getMonth() + 1 !== m) return;
+
+        const day = d.getDate();
+        data[day - 1] = h.seconds;
+    });
+
+    renderChart("dayChart", labels, data, monthStr);
+}
+
+function renderWeekChart(monthStr) {
+    if (!monthStr) return;
+
+    const [y, m] = monthStr.split("/").map(Number);
+
+    const labels = Array.from({ length: 30 }, (_, i) =>
+        `${String(i + 1).padStart(2, "0")}日`
+    );
+
+    const data = Array(30).fill(null);
+
+    history.forEach(h => {
+        const d = new Date(h.timestamp);
+
+        if (d.getFullYear() !== y || d.getMonth() + 1 !== m) return;
+
+        const day = d.getDate();
+        data[day - 1] = h.seconds;
+    });
+
+    renderChart("weekChart", labels, data, monthStr);
+}
 /* =========================
    Firebase同期
 ========================= */
