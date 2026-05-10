@@ -127,20 +127,50 @@ function refreshChart() {
     }
 }
 
+/* =========================
+   グラフ描画 修正版
+========================= */
+
 function fetchHistoryAndRender(type) {
+    // どちらのスライダーを使うか判定
     const ds = (type === 'min') ? document.getElementById("dateSlider") : document.getElementById("hourDateSlider");
+    
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val() || {};
-        const days = Object.keys(hData).sort();
+        const days = Object.keys(hData).sort(); // 日付リスト ['2024-05-09', '2024-05-10', ...]
+        
         if (days.length === 0) return;
+
+        // スライダーの最大値を日付数に合わせる
         ds.max = days.length - 1;
-        if (ds.dataset.initialized !== "true") { ds.value = ds.max; ds.dataset.initialized = "true"; }
+
+        // 初回読み込み時のみ、最新の日付（一番右）に合わせる
+        if (ds.dataset.initialized !== "true") {
+            ds.value = days.length - 1;
+            ds.dataset.initialized = "true";
+        }
+
+        // スライダーの現在の値から日付を特定
         const selectedDate = days[ds.value];
+        if (!selectedDate) return;
+
         const dayHistory = Object.values(hData[selectedDate] || {}).sort((a, b) => a.timestamp - b.timestamp);
-        if (type === 'min') renderMinChart(selectedDate, dayHistory);
-        else renderHourChart(selectedDate, dayHistory);
+
+        if (type === 'min') {
+            renderMinChart(selectedDate, dayHistory);
+        } else {
+            renderHourChart(selectedDate, dayHistory);
+        }
     });
 }
+
+// 既存のイベントリスナーに加えて、明示的にスライダーが動いた時にグラフを更新
+document.getElementById("dateSlider").addEventListener('input', () => fetchHistoryAndRender('min'));
+document.getElementById("hourDateSlider").addEventListener('input', () => fetchHistoryAndRender('hour'));
+document.getElementById("hourSlider").addEventListener('input', () => {
+    // 時間スライダー（0-23時）が動いた時は、現在選択されている日付を再取得して描画
+    fetchHistoryAndRender('min');
+});
 
 function renderMinChart(selectedDate, dayHistory) {
     const hSlider = document.getElementById("hourSlider");
