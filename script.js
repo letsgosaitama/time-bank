@@ -38,7 +38,7 @@ function formatTime(sec) {
     return `${isNegative ? "-" : ""}${h}:${m}:${s}`;
 }
 
-// 日付文字列（"2026-5-9" や "2026-05-09"）を必ず "2026-05-09" に整形する共通関数
+// 日付文字列（"2026-5-9" や "2026-05-09"）を確実に "2026-05-09" に整形する関数
 function standardizeDateStr(dateStr) {
     if (!dateStr) return "-";
     const parts = dateStr.replace(/\//g, '-').split('-');
@@ -129,7 +129,7 @@ db.ref("timebank/daily_summary").on("value", snap => {
 });
 
 /* =========================
-   グラフ描画（0基準・色分け完璧版）
+   グラフ描画（確実な2桁表示修正版）
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
@@ -150,20 +150,33 @@ function fetchHistoryAndRender(type) {
         if (days.length === 0) return;
         ds.max = days.length - 1;
         if (ds.dataset.initialized !== "true") { ds.value = ds.max; ds.dataset.initialized = "true"; }
+        
+        // スライダーが指している生の日付キー（例: "2026-5-9"）
         const selectedDate = days[ds.value];
         const dayHistory = Object.values(hData[selectedDate] || {}).sort((a, b) => a.timestamp - b.timestamp);
-        if (type === 'min') renderMinChart(selectedDate, dayHistory);
-        else renderHourChart(selectedDate, dayHistory);
+        
+        // ラベル表示用の要素を取得
+        const labelId = (type === 'min') ? "dateLabel" : "hourDateLabel";
+        const labelEl = document.getElementById(labelId);
+        
+        // 【完全修正】ここで画面表示テキストを確実に「2桁形式」に書き換える
+        if (labelEl) {
+            labelEl.textContent = standardizeDateStr(selectedDate);
+        }
+
+        if (type === 'min') {
+            renderMinChart(dayHistory);
+        } else {
+            renderHourChart(dayHistory);
+        }
     });
 }
 
-function renderMinChart(selectedDate, dayHistory) {
+function renderMinChart(dayHistory) {
     const hSlider = document.getElementById("hourSlider");
     if (hSlider.dataset.initialized !== "true") { hSlider.value = new Date().getHours(); hSlider.dataset.initialized = "true"; }
     const hour = parseInt(hSlider.value);
     
-    // 【修正】データベース上のキーが 2026-5-9 であっても、画面表示時は 2026-05-09 に変換
-    document.getElementById("dateLabel").textContent = standardizeDateStr(selectedDate);
     document.getElementById("hourLabel").textContent = hour + "時";
     
     const labels = Array.from({length:60}, (_,i) => `${hour}:${String(i).padStart(2,'0')}`);
@@ -175,10 +188,7 @@ function renderMinChart(selectedDate, dayHistory) {
     renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次");
 }
 
-function renderHourChart(selectedDate, dayHistory) {
-    // 【修正】データベース上のキーが 2026-5-9 であっても、画面表示時は 2026-05-09 に変換
-    document.getElementById("hourDateLabel").textContent = standardizeDateStr(selectedDate);
-    
+function renderHourChart(dayHistory) {
     const labels = Array.from({length:24}, (_,i) => i+":00");
     const map = {};
     dayHistory.forEach(h => {
