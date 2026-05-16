@@ -38,29 +38,19 @@ function formatTime(sec) {
     return `${isNegative ? "-" : ""}${h}:${m}:${s}`;
 }
 
-// 日付文字列（"2026-5-9" や "2026-05-09"）を確実に "2026-05-09" に整形する関数
-function standardizeDateStr(dateStr) {
-    if (!dateStr) return "-";
-    const parts = dateStr.replace(/\//g, '-').split('-');
-    if (parts.length !== 3) return dateStr;
-    const y = parts[0];
-    const m = String(parts[1]).padStart(2, "0");
-    const d = String(parts[2]).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-}
-
 timerText.onclick = () => {
     displayMode = (displayMode === "hms") ? "sec" : "hms";
     timerText.textContent = formatTime(seconds);
 };
 
 /* =========================
-   保存 & クリーンアップ
+   保存 & クリーンアップ（修正版：2桁ゼロ埋めに統一）
 ========================= */
 function saveData(force = false) {
     const now = new Date();
     const t = now.getTime();
     
+    // 環境に依存せず、必ず「YYYY-MM-DD」の形式になるよう手動でゼロ埋め成形
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, "0");
     const d = String(now.getDate()).padStart(2, "0");
@@ -129,7 +119,7 @@ db.ref("timebank/daily_summary").on("value", snap => {
 });
 
 /* =========================
-   グラフ描画（スライダーの並び順バグ修正版）
+   グラフ描画（修正版：日付ソートをタイムスタンプ基準に強化）
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
@@ -147,41 +137,27 @@ function fetchHistoryAndRender(type) {
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val() || {};
         
-        // 【修正】混在する1桁日付と2桁日付を、タイムスタンプ（ミリ秒）に変換して「必ず古い順 → 新しい順」にソートする
+        // 文字列の文字コード順ではなく、Dateオブジェクトに変換して古い順に確実ソート
         const days = Object.keys(hData).sort((a, b) => {
-            return new Date(standardizeDateStr(a)).getTime() - new Date(standardizeDateStr(b)).getTime();
+            return new Date(a).getTime() - new Date(b).getTime();
         });
         
         if (days.length === 0) return;
         ds.max = days.length - 1;
         if (ds.dataset.initialized !== "true") { ds.value = ds.max; ds.dataset.initialized = "true"; }
-        
-        // 正しくソートされた中からスライダーの位置のキーを取得
         const selectedDate = days[ds.value];
         const dayHistory = Object.values(hData[selectedDate] || {}).sort((a, b) => a.timestamp - b.timestamp);
-        
-        const labelId = (type === 'min') ? "dateLabel" : "hourDateLabel";
-        const labelEl = document.getElementById(labelId);
-        
-        if (labelEl) {
-            labelEl.textContent = standardizeDateStr(selectedDate);
-        }
-
-        if (type === 'min') {
-            renderMinChart(dayHistory);
-        } else {
-            renderHourChart(dayHistory);
-        }
+        if (type === 'min') renderMinChart(selectedDate, dayHistory);
+        else renderHourChart(selectedDate, dayHistory);
     });
 }
 
-function renderMinChart(dayHistory) {
+function renderMinChart(selectedDate, dayHistory) {
     const hSlider = document.getElementById("hourSlider");
     if (hSlider.dataset.initialized !== "true") { hSlider.value = new Date().getHours(); hSlider.dataset.initialized = "true"; }
     const hour = parseInt(hSlider.value);
-    
+    document.getElementById("dateLabel").textContent = selectedDate;
     document.getElementById("hourLabel").textContent = hour + "時";
-    
     const labels = Array.from({length:60}, (_,i) => `${hour}:${String(i).padStart(2,'0')}`);
     const map = {};
     dayHistory.forEach(h => {
@@ -191,7 +167,8 @@ function renderMinChart(dayHistory) {
     renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次");
 }
 
-function renderHourChart(dayHistory) {
+function renderHourChart(selectedDate, dayHistory) {
+    document.getElementById("hourDateLabel").textContent = selectedDate;
     const labels = Array.from({length:24}, (_,i) => i+":00");
     const map = {};
     dayHistory.forEach(h => {
@@ -202,14 +179,7 @@ function renderHourChart(dayHistory) {
 }
 
 function updateDaySliders() {
-    // 【修正】日別スライダー用の月リストも、日付ベースで正しくソート
-    const months = [...new Set(dailySummary.map(h => { 
-        const d = new Date(h.timestamp); 
-        return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}`; 
-    }))].sort((a, b) => {
-        return new Date(a.replace('/', '-') + '-01').getTime() - new Date(b.replace('/', '-') + '-01').getTime();
-    });
-
+    const months = [...new Set(dailySummary.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
     const slider = document.getElementById("dayMonthSlider");
     slider.max = Math.max(0, months.length - 1);
     const selectedMonth = months[slider.value];
@@ -225,7 +195,7 @@ function updateDaySliders() {
 }
 
 function updateMonthSliders() {
-    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort((a, b) => a - b);
+    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort();
     const slider = document.getElementById("monthYearSlider");
     slider.max = Math.max(0, years.length - 1);
     const selectedYear = years[slider.value];
@@ -240,7 +210,7 @@ function updateMonthSliders() {
 }
 
 function updateYearSliders() {
-    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort((a, b) => a - b);
+    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort();
     const map = {}; dailySummary.forEach(h => { const d = new Date(h.timestamp); map[d.getFullYear()] = h.seconds; });
     renderChart("yearChart", years.map(String), years.map(y => map[y] ?? null), "年別");
 }
