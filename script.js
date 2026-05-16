@@ -29,13 +29,20 @@ let lastPush = 0;
 
 const timerText = document.getElementById("timer");
 
-// ★修正: 日付キーを必ず "YYYY-MM-DD" 固定フォーマットで生成
-// toLocaleDateString() は環境・ロケールによって形式が変わるため使わない
+// 日付キーを必ず "YYYY-MM-DD" 固定フォーマットで生成
 function toDateKey(date) {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
     const d = String(date.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
+}
+
+// ★修正: どんな形式の日付文字列でも "YYYY-MM-DD" に正規化する
+// "2026/5/9" → "2026-05-09"、"2026-05-09" → "2026-05-09"
+function normalizeDateKey(dateStr) {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr; // パース失敗時はそのまま返す
+    return toDateKey(d);
 }
 
 function formatTime(sec) {
@@ -59,7 +66,7 @@ timerText.onclick = () => {
 function saveData(force = false) {
     const now = new Date();
     const t = now.getTime();
-    const todayStr = toDateKey(now); // ★修正: 固定フォーマット使用
+    const todayStr = toDateKey(now);
 
     if (force || (t - lastPush > 300000)) {
         dataRef.update({ seconds, mode, lastUpdate: t });
@@ -142,14 +149,25 @@ function fetchHistoryAndRender(type) {
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val() || {};
 
-        // "YYYY-MM-DD" 形式なので文字列ソートで正しく日付順になる
-        const days = Object.keys(hData).sort();
+        // ★修正: キーを正規化してからマージ・ソート
+        // 古い形式("2026/5/9")と新しい形式("2026-05-09")が混在しても正しく扱う
+        const normalized = {};
+        Object.keys(hData).forEach(rawKey => {
+            const key = normalizeDateKey(rawKey);
+            if (!normalized[key]) normalized[key] = {};
+            // 同じ日付の複数キーのデータをマージ
+            Object.assign(normalized[key], hData[rawKey]);
+        });
+
+        // "YYYY-MM-DD" 形式なので文字列ソートで正しく昇順になる
+        const days = Object.keys(normalized).sort();
 
         if (days.length === 0) return;
         ds.max = days.length - 1;
         if (ds.dataset.initialized !== "true") { ds.value = ds.max; ds.dataset.initialized = "true"; }
-        const selectedDate = days[ds.value];
-        const dayHistory = Object.values(hData[selectedDate] || {}).sort((a, b) => a.timestamp - b.timestamp);
+
+        const selectedDate = days[parseInt(ds.value)];
+        const dayHistory = Object.values(normalized[selectedDate] || {}).sort((a, b) => a.timestamp - b.timestamp);
         if (type === 'min') renderMinChart(selectedDate, dayHistory);
         else renderHourChart(selectedDate, dayHistory);
     });
@@ -182,7 +200,7 @@ function renderHourChart(selectedDate, dayHistory) {
 }
 
 function updateDaySliders() {
-    // ★修正: "YYYY-MM" 形式で統一すれば文字列ソートで正しく並ぶ
+    // "YYYY-MM" 形式で統一すれば文字列ソートで正しく並ぶ
     const months = [...new Set(dailySummary.map(h => {
         const d = new Date(h.timestamp);
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -190,7 +208,7 @@ function updateDaySliders() {
 
     const slider = document.getElementById("dayMonthSlider");
     slider.max = Math.max(0, months.length - 1);
-    const selectedMonth = months[slider.value];
+    const selectedMonth = months[parseInt(slider.value)];
     document.getElementById("dayMonthLabel").textContent = selectedMonth || "-";
     if (!selectedMonth) return;
 
@@ -209,7 +227,7 @@ function updateMonthSliders() {
     const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort((a, b) => a - b);
     const slider = document.getElementById("monthYearSlider");
     slider.max = Math.max(0, years.length - 1);
-    const selectedYear = years[slider.value];
+    const selectedYear = years[parseInt(slider.value)];
     document.getElementById("monthYearLabel").textContent = selectedYear || "-";
     if (!selectedYear) return;
 
