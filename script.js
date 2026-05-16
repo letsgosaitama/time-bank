@@ -37,12 +37,17 @@ function toDateKey(date) {
     return `${y}-${m}-${d}`;
 }
 
-// ★修正: どんな形式の日付文字列でも "YYYY-MM-DD" に正規化する
-// "2026/5/9" → "2026-05-09"、"2026-05-09" → "2026-05-09"
+// ★どんな形式でも確実に "YYYY-MM-DD" に正規化
+// "2026/5/9" "2026-5-9" "2026-05-09" すべて対応
+// new Date() を使わず文字列操作のみ（Safari対応）
 function normalizeDateKey(dateStr) {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr; // パース失敗時はそのまま返す
-    return toDateKey(d);
+    // "/" と "-" のどちらで区切られていてもOK
+    const parts = String(dateStr).replace(/\//g, "-").split("-");
+    if (parts.length !== 3) return dateStr;
+    const y = parts[0].padStart(4, "0");
+    const m = parts[1].padStart(2, "0");
+    const d = parts[2].padStart(2, "0");
+    return `${y}-${m}-${d}`;
 }
 
 function formatTime(sec) {
@@ -82,7 +87,11 @@ function cleanupOldHistory() {
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val(); if (!hData) return;
         Object.keys(hData).forEach(dateStr => {
-            if (new Date(dateStr).getTime() < sevenDaysAgo) db.ref(`timebank/history/${dateStr}`).remove();
+            // 正規化してから比較
+            const normalized = normalizeDateKey(dateStr);
+            const parts = normalized.split("-").map(Number);
+            const ts = new Date(parts[0], parts[1] - 1, parts[2]).getTime();
+            if (ts < sevenDaysAgo) db.ref(`timebank/history/${dateStr}`).remove();
         });
     });
 }
@@ -149,13 +158,11 @@ function fetchHistoryAndRender(type) {
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val() || {};
 
-        // ★修正: キーを正規化してからマージ・ソート
-        // 古い形式("2026/5/9")と新しい形式("2026-05-09")が混在しても正しく扱う
+        // ★全キーを正規化してマージ
         const normalized = {};
         Object.keys(hData).forEach(rawKey => {
             const key = normalizeDateKey(rawKey);
             if (!normalized[key]) normalized[key] = {};
-            // 同じ日付の複数キーのデータをマージ
             Object.assign(normalized[key], hData[rawKey]);
         });
 
@@ -166,7 +173,8 @@ function fetchHistoryAndRender(type) {
         ds.max = days.length - 1;
         if (ds.dataset.initialized !== "true") { ds.value = ds.max; ds.dataset.initialized = "true"; }
 
-        const selectedDate = days[parseInt(ds.value)];
+        const idx = parseInt(ds.value);
+        const selectedDate = days[idx];
         const dayHistory = Object.values(normalized[selectedDate] || {}).sort((a, b) => a.timestamp - b.timestamp);
         if (type === 'min') renderMinChart(selectedDate, dayHistory);
         else renderHourChart(selectedDate, dayHistory);
@@ -200,7 +208,6 @@ function renderHourChart(selectedDate, dayHistory) {
 }
 
 function updateDaySliders() {
-    // "YYYY-MM" 形式で統一すれば文字列ソートで正しく並ぶ
     const months = [...new Set(dailySummary.map(h => {
         const d = new Date(h.timestamp);
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
