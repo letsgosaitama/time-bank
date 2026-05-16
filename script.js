@@ -38,6 +38,17 @@ function formatTime(sec) {
     return `${isNegative ? "-" : ""}${h}:${m}:${s}`;
 }
 
+// 日付文字列（"2026-5-9" や "2026-05-09"）を必ず "2026-05-09" に整形する共通関数
+function standardizeDateStr(dateStr) {
+    if (!dateStr) return "-";
+    const parts = dateStr.replace(/\//g, '-').split('-');
+    if (parts.length !== 3) return dateStr;
+    const y = parts[0];
+    const m = String(parts[1]).padStart(2, "0");
+    const d = String(parts[2]).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
 timerText.onclick = () => {
     displayMode = (displayMode === "hms") ? "sec" : "hms";
     timerText.textContent = formatTime(seconds);
@@ -50,7 +61,6 @@ function saveData(force = false) {
     const now = new Date();
     const t = now.getTime();
     
-    // 【修正】日付の桁数を常に2桁（例: 2026-05-09）に揃えて保存する
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, "0");
     const d = String(now.getDate()).padStart(2, "0");
@@ -151,8 +161,11 @@ function renderMinChart(selectedDate, dayHistory) {
     const hSlider = document.getElementById("hourSlider");
     if (hSlider.dataset.initialized !== "true") { hSlider.value = new Date().getHours(); hSlider.dataset.initialized = "true"; }
     const hour = parseInt(hSlider.value);
-    document.getElementById("dateLabel").textContent = selectedDate;
+    
+    // 【修正】データベース上のキーが 2026-5-9 であっても、画面表示時は 2026-05-09 に変換
+    document.getElementById("dateLabel").textContent = standardizeDateStr(selectedDate);
     document.getElementById("hourLabel").textContent = hour + "時";
+    
     const labels = Array.from({length:60}, (_,i) => `${hour}:${String(i).padStart(2,'0')}`);
     const map = {};
     dayHistory.forEach(h => {
@@ -163,7 +176,9 @@ function renderMinChart(selectedDate, dayHistory) {
 }
 
 function renderHourChart(selectedDate, dayHistory) {
-    document.getElementById("hourDateLabel").textContent = selectedDate;
+    // 【修正】データベース上のキーが 2026-5-9 であっても、画面表示時は 2026-05-09 に変換
+    document.getElementById("hourDateLabel").textContent = standardizeDateStr(selectedDate);
+    
     const labels = Array.from({length:24}, (_,i) => i+":00");
     const map = {};
     dayHistory.forEach(h => {
@@ -174,7 +189,6 @@ function renderHourChart(selectedDate, dayHistory) {
 }
 
 function updateDaySliders() {
-    // 【修正】月別のキーを「2026/05」のように常に2桁の形式で生成・取得する
     const months = [...new Set(dailySummary.map(h => { 
         const d = new Date(h.timestamp); 
         return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}`; 
