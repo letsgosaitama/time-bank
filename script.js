@@ -1,6 +1,7 @@
 /* =========================
    Firebase設定
 ========================= */
+
 const firebaseConfig = {
   apiKey: "AIzaSyBOxVHqeHmdL3KVvUDFCGh6hGAd8LbEL2w",
   authDomain: "timebank-1c2f8.firebaseapp.com",
@@ -44,19 +45,14 @@ timerText.onclick = () => {
 };
 
 /* =========================
-   保存 & クリーンアップ（修正版：2桁ゼロ埋めに統一）
+   保存 & クリーンアップ
 ========================= */
 function saveData(force = false) {
     const now = new Date();
     const t = now.getTime();
-    
-    // 環境に依存せず、必ず「YYYY-MM-DD」の形式になるよう手動でゼロ埋め成形
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    const todayStr = `${y}-${m}-${d}`;
+    const todayStr = now.toLocaleDateString().replace(/\//g, '-');
 
-    if (force || (t - lastPush > 300000)) { 
+    if (force || (t - lastPush > 300000)) {
         dataRef.update({ seconds, mode, lastUpdate: t });
         db.ref(`timebank/history/${todayStr}`).push({ timestamp: t, seconds });
         db.ref(`timebank/daily_summary/${todayStr}`).set({ timestamp: t, seconds });
@@ -119,7 +115,7 @@ db.ref("timebank/daily_summary").on("value", snap => {
 });
 
 /* =========================
-   グラフ描画（修正版：日付ソートをタイムスタンプ基準に強化）
+   グラフ描画（0基準・色分け完璧版）
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
@@ -127,7 +123,7 @@ function refreshChart() {
     const name = activeTab.textContent.toLowerCase();
     if (name === 'min' || name === 'hour') fetchHistoryAndRender(name);
     else {
-        const updateMap = { day:updateDaySliders, month:updateMonthSliders, year:updateYearSliders };
+        const updateMap = { day: updateDaySliders, month: updateMonthSliders, year: updateYearSliders };
         if (updateMap[name]) updateMap[name]();
     }
 }
@@ -136,12 +132,10 @@ function fetchHistoryAndRender(type) {
     const ds = (type === 'min') ? document.getElementById("dateSlider") : document.getElementById("hourDateSlider");
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val() || {};
-        
-        // 文字列の文字コード順ではなく、Dateオブジェクトに変換して古い順に確実ソート
-        const days = Object.keys(hData).sort((a, b) => {
-            return new Date(a).getTime() - new Date(b).getTime();
-        });
-        
+
+        // ★修正: 文字コード順ではなく日付の数値比較でソート
+        const days = Object.keys(hData).sort((a, b) => new Date(a) - new Date(b));
+
         if (days.length === 0) return;
         ds.max = days.length - 1;
         if (ds.dataset.initialized !== "true") { ds.value = ds.max; ds.dataset.initialized = "true"; }
@@ -158,60 +152,74 @@ function renderMinChart(selectedDate, dayHistory) {
     const hour = parseInt(hSlider.value);
     document.getElementById("dateLabel").textContent = selectedDate;
     document.getElementById("hourLabel").textContent = hour + "時";
-    const labels = Array.from({length:60}, (_,i) => `${hour}:${String(i).padStart(2,'0')}`);
+    const labels = Array.from({length: 60}, (_, i) => `${hour}:${String(i).padStart(2, '0')}`);
     const map = {};
     dayHistory.forEach(h => {
         const d = new Date(h.timestamp);
         if (d.getHours() === hour) map[d.getMinutes()] = h.seconds;
     });
-    renderChart("minChart", labels, labels.map((_,i) => map[i] ?? null), "分次");
+    renderChart("minChart", labels, labels.map((_, i) => map[i] ?? null), "分次");
 }
 
 function renderHourChart(selectedDate, dayHistory) {
     document.getElementById("hourDateLabel").textContent = selectedDate;
-    const labels = Array.from({length:24}, (_,i) => i+":00");
+    const labels = Array.from({length: 24}, (_, i) => i + ":00");
     const map = {};
     dayHistory.forEach(h => {
         const d = new Date(h.timestamp);
         map[d.getHours()] = h.seconds;
     });
-    renderChart("historyChart", labels, labels.map((_,i) => map[i] ?? null), "時間次");
+    renderChart("historyChart", labels, labels.map((_, i) => map[i] ?? null), "時間次");
 }
 
 function updateDaySliders() {
-    const months = [...new Set(dailySummary.map(h => { const d = new Date(h.timestamp); return `${d.getFullYear()}/${d.getMonth()+1}`; }))];
+    // ★修正: 年/月を数値比較でソート（"2025/10" > "2025/9" が文字コード順では逆転するため）
+    const months = [...new Set(dailySummary.map(h => {
+        const d = new Date(h.timestamp);
+        return `${d.getFullYear()}/${d.getMonth() + 1}`;
+    }))].sort((a, b) => {
+        const [ay, am] = a.split("/").map(Number);
+        const [by, bm] = b.split("/").map(Number);
+        return ay !== by ? ay - by : am - bm;
+    });
+
     const slider = document.getElementById("dayMonthSlider");
     slider.max = Math.max(0, months.length - 1);
     const selectedMonth = months[slider.value];
     document.getElementById("dayMonthLabel").textContent = selectedMonth || "-";
     if (!selectedMonth) return;
+
     const [y, m] = selectedMonth.split("/").map(Number);
-    const labels = Array.from({length: new Date(y, m, 0).getDate()}, (_,i) => (i+1)+"日");
-    const map = {}; dailySummary.forEach(h => {
+    const labels = Array.from({length: new Date(y, m, 0).getDate()}, (_, i) => (i + 1) + "日");
+    const map = {};
+    dailySummary.forEach(h => {
         const d = new Date(h.timestamp);
-        if(d.getFullYear()===y && (d.getMonth()+1)===m) map[d.getDate()] = h.seconds;
+        if (d.getFullYear() === y && (d.getMonth() + 1) === m) map[d.getDate()] = h.seconds;
     });
-    renderChart("dayChart", labels, labels.map((_,i) => map[i+1] ?? null), "日別");
+    renderChart("dayChart", labels, labels.map((_, i) => map[i + 1] ?? null), "日別");
 }
 
 function updateMonthSliders() {
-    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort();
+    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort((a, b) => a - b);
     const slider = document.getElementById("monthYearSlider");
     slider.max = Math.max(0, years.length - 1);
     const selectedYear = years[slider.value];
     document.getElementById("monthYearLabel").textContent = selectedYear || "-";
     if (!selectedYear) return;
-    const map = {}; dailySummary.forEach(h => {
+
+    const map = {};
+    dailySummary.forEach(h => {
         const d = new Date(h.timestamp);
-        if(d.getFullYear() === selectedYear) map[d.getMonth()+1] = h.seconds;
+        if (d.getFullYear() === selectedYear) map[d.getMonth() + 1] = h.seconds;
     });
-    const labels = Array.from({length:12}, (_,i) => (i+1)+"月");
-    renderChart("monthChart", labels, labels.map((_,i) => map[i+1] ?? null), "月別");
+    const labels = Array.from({length: 12}, (_, i) => (i + 1) + "月");
+    renderChart("monthChart", labels, labels.map((_, i) => map[i + 1] ?? null), "月別");
 }
 
 function updateYearSliders() {
-    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort();
-    const map = {}; dailySummary.forEach(h => { const d = new Date(h.timestamp); map[d.getFullYear()] = h.seconds; });
+    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort((a, b) => a - b);
+    const map = {};
+    dailySummary.forEach(h => { const d = new Date(h.timestamp); map[d.getFullYear()] = h.seconds; });
     renderChart("yearChart", years.map(String), years.map(y => map[y] ?? null), "年別");
 }
 
@@ -269,17 +277,15 @@ function getExactGradient(ctx, chartArea, yScale, colorPlus, colorMinus) {
     const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
     let stop = (zeroPos - chartArea.top) / (chartArea.bottom - chartArea.top);
     stop = Math.max(0, Math.min(1, stop));
-
     gradient.addColorStop(0, colorPlus);
     gradient.addColorStop(stop, colorPlus);
     gradient.addColorStop(stop, colorMinus);
     gradient.addColorStop(1, colorMinus);
-    
     return gradient;
 }
 
 /* =========================
-   タブ & 設定（変更なし）
+   タブ & 設定
 ========================= */
 window.showSubTab = function (type, isFirstOpen = false) {
     document.querySelectorAll(".subTabContent").forEach(c => c.style.display = "none");
@@ -289,8 +295,12 @@ window.showSubTab = function (type, isFirstOpen = false) {
     refreshChart();
 };
 
-window.toggleConfig = () => { const p = document.getElementById("configPanel"); p.style.display = p.style.display === "none" ? "flex" : "none"; };
-document.getElementById("yMaxSlider").oninput = function() {
+window.toggleConfig = () => {
+    const p = document.getElementById("configPanel");
+    p.style.display = p.style.display === "none" ? "flex" : "none";
+};
+
+document.getElementById("yMaxSlider").oninput = function () {
     currentYMax = (this.value >= 85000) ? null : this.value;
     document.getElementById("yMaxDisplay").textContent = currentYMax ? currentYMax + "s" : "AUTO";
     refreshChart();
@@ -302,16 +312,17 @@ document.getElementById("hourDateSlider").oninput = refreshChart;
 document.getElementById("dayMonthSlider").oninput = refreshChart;
 document.getElementById("monthYearSlider").oninput = refreshChart;
 
-document.getElementById("timerTab").onclick = () => { 
-    document.getElementById("timerPage").style.display = "block"; 
-    document.getElementById("graphPage").style.display = "none"; 
-    document.getElementById("timerTab").classList.add("active"); 
-    document.getElementById("graphTab").classList.remove("active"); 
+document.getElementById("timerTab").onclick = () => {
+    document.getElementById("timerPage").style.display = "block";
+    document.getElementById("graphPage").style.display = "none";
+    document.getElementById("timerTab").classList.add("active");
+    document.getElementById("graphTab").classList.remove("active");
 };
-document.getElementById("graphTab").onclick = () => { 
-    document.getElementById("timerPage").style.display = "none"; 
-    document.getElementById("graphPage").style.display = "block"; 
-    document.getElementById("graphTab").classList.add("active"); 
-    document.getElementById("timerTab").classList.remove("active"); 
-    showSubTab('min', true); 
+
+document.getElementById("graphTab").onclick = () => {
+    document.getElementById("timerPage").style.display = "none";
+    document.getElementById("graphPage").style.display = "block";
+    document.getElementById("graphTab").classList.add("active");
+    document.getElementById("timerTab").classList.remove("active");
+    showSubTab('min', true);
 };
