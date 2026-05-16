@@ -11,12 +11,10 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-
     <div class="tabs">
         <div id="timerTab" class="tab active">TIMER</div>
         <div id="graphTab" class="tab">GRAPH</div>
     </div>
-
     <!-- タイマーページ -->
     <div id="timerPage">
         <div id="timer">00:00:00</div>
@@ -27,7 +25,6 @@
             <button id="resetBtn">RESET</button>
         </div>
     </div>
-
     <!-- グラフページ -->
     <div id="graphPage" style="display:none;">
         <div class="subTabs">
@@ -37,10 +34,8 @@
             <button class="subTab" onclick="showSubTab('month')">MONTH</button>
             <button class="subTab" onclick="showSubTab('year')">YEAR</button>
         </div>
-
         <div class="graph-main-layout">
             <button id="graphConfigBtn" onclick="toggleConfig()">⚙️ 設定</button>
-
             <div id="configPanel" class="config-panel" style="display:none;">
                 <div class="y-axis-container">
                     <span class="y-label">縦軸MAX</span>
@@ -49,30 +44,24 @@
                 </div>
                 <button class="close-panel-btn" onclick="toggleConfig()">閉じる</button>
             </div>
-
             <div class="charts-wrapper">
                 <div id="subMin" class="subTabContent"><div class="minControls">
                     <div class="sliderRow"><label>日付</label><input type="range" id="dateSlider"><span id="dateLabel">-</span></div>
                     <div class="sliderRow"><label>時間</label><input type="range" id="hourSlider" min="0" max="23"><span id="hourLabel">0時</span></div>
                 </div><div class="chartContainer"><canvas id="minChart"></canvas></div></div>
-
                 <div id="subHour" class="subTabContent" style="display:none;"><div class="minControls">
                     <div class="sliderRow"><label>日付</label><input type="range" id="hourDateSlider"><span id="hourDateLabel">-</span></div>
                 </div><div class="chartContainer"><canvas id="historyChart"></canvas></div></div>
-
                 <div id="subDay" class="subTabContent" style="display:none;"><div class="minControls">
                     <div class="sliderRow"><label>選択月</label><input type="range" id="dayMonthSlider"><span id="dayMonthLabel">-</span></div>
                 </div><div class="chartContainer"><canvas id="dayChart"></canvas></div></div>
-
                 <div id="subMonth" class="subTabContent" style="display:none;"><div class="minControls">
                     <div class="sliderRow"><label>選択年</label><input type="range" id="monthYearSlider"><span id="monthYearLabel">-</span></div>
                 </div><div class="chartContainer"><canvas id="monthChart"></canvas></div></div>
-
                 <div id="subYear" class="subTabContent" style="display:none;"><div class="chartContainer"><canvas id="yearChart"></canvas></div></div>
             </div>
         </div>
     </div>
-
-    <script src="script.js"></script>
+    <script src="script.js?v=4"></script>
 </body>
 </html>
