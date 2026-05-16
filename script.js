@@ -129,7 +129,7 @@ db.ref("timebank/daily_summary").on("value", snap => {
 });
 
 /* =========================
-   グラフ描画（確実な2桁表示修正版）
+   グラフ描画（スライダーの並び順バグ修正版）
 ========================= */
 function refreshChart() {
     const activeTab = document.querySelector(".subTab.active");
@@ -146,20 +146,23 @@ function fetchHistoryAndRender(type) {
     const ds = (type === 'min') ? document.getElementById("dateSlider") : document.getElementById("hourDateSlider");
     db.ref("timebank/history").once("value", snap => {
         const hData = snap.val() || {};
-        const days = Object.keys(hData).sort();
+        
+        // 【修正】混在する1桁日付と2桁日付を、タイムスタンプ（ミリ秒）に変換して「必ず古い順 → 新しい順」にソートする
+        const days = Object.keys(hData).sort((a, b) => {
+            return new Date(standardizeDateStr(a)).getTime() - new Date(standardizeDateStr(b)).getTime();
+        });
+        
         if (days.length === 0) return;
         ds.max = days.length - 1;
         if (ds.dataset.initialized !== "true") { ds.value = ds.max; ds.dataset.initialized = "true"; }
         
-        // スライダーが指している生の日付キー（例: "2026-5-9"）
+        // 正しくソートされた中からスライダーの位置のキーを取得
         const selectedDate = days[ds.value];
         const dayHistory = Object.values(hData[selectedDate] || {}).sort((a, b) => a.timestamp - b.timestamp);
         
-        // ラベル表示用の要素を取得
         const labelId = (type === 'min') ? "dateLabel" : "hourDateLabel";
         const labelEl = document.getElementById(labelId);
         
-        // 【完全修正】ここで画面表示テキストを確実に「2桁形式」に書き換える
         if (labelEl) {
             labelEl.textContent = standardizeDateStr(selectedDate);
         }
@@ -199,10 +202,13 @@ function renderHourChart(dayHistory) {
 }
 
 function updateDaySliders() {
+    // 【修正】日別スライダー用の月リストも、日付ベースで正しくソート
     const months = [...new Set(dailySummary.map(h => { 
         const d = new Date(h.timestamp); 
         return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}`; 
-    }))].sort();
+    }))].sort((a, b) => {
+        return new Date(a.replace('/', '-') + '-01').getTime() - new Date(b.replace('/', '-') + '-01').getTime();
+    });
 
     const slider = document.getElementById("dayMonthSlider");
     slider.max = Math.max(0, months.length - 1);
@@ -219,7 +225,7 @@ function updateDaySliders() {
 }
 
 function updateMonthSliders() {
-    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort();
+    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort((a, b) => a - b);
     const slider = document.getElementById("monthYearSlider");
     slider.max = Math.max(0, years.length - 1);
     const selectedYear = years[slider.value];
@@ -234,7 +240,7 @@ function updateMonthSliders() {
 }
 
 function updateYearSliders() {
-    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort();
+    const years = [...new Set(dailySummary.map(h => new Date(h.timestamp).getFullYear()))].sort((a, b) => a - b);
     const map = {}; dailySummary.forEach(h => { const d = new Date(h.timestamp); map[d.getFullYear()] = h.seconds; });
     renderChart("yearChart", years.map(String), years.map(y => map[y] ?? null), "年別");
 }
